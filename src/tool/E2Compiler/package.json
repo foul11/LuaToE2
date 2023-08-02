@@ -1,0 +1,20 @@
+{
+  "name": "e2compiler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "module",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/yargs": "^17.0.24",
+    "antlr4": "^4.13.0",
+    "async-mutex": "^0.4.0",
+    "eslint": "^8.44.0",
+    "glob": "^10.3.3",
+    "yargs": "^17.7.2"
+  }
+}

@@ -1,0 +1,20 @@
+#!/bin/env bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+get_java_home() {
+	if [[ -v JAVA_HOME_18 ]]; then
+		echo $JAVA_HOME_18;
+	elif [[ -v JAVA_HOME_17 ]]; then
+		echo $JAVA_HOME_17;
+	elif [[ -v JAVA_HOME_16 ]]; then
+		echo $JAVA_HOME_16;
+	else
+		echo $JAVA_HOME;
+	fi
+}
+
+$SCRIPT_DIR/bin/antlr -Dlanguage=Java -lib $SCRIPT_DIR/ -o $SCRIPT_DIR/dist -visitor -Xexact-output-dir $SCRIPT_DIR/E2.g4
+$SCRIPT_DIR/bin/antlr -Dlanguage=JavaScript -lib $SCRIPT_DIR/ -o $SCRIPT_DIR/dist -visitor -Xexact-output-dir $SCRIPT_DIR/E2.g4
+
+$(get_java_home)/bin/javac -cp "$SCRIPT_DIR/dist/:$SCRIPT_DIR/bin/antlr-4.13.0-complete.jar:$SCRIPT_DIR/bin/gson-2.10.1.jar" $SCRIPT_DIR/grammar_parser.java -d $SCRIPT_DIR/dist/

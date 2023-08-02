@@ -1,0 +1,17 @@
+#!/bin/env bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+get_java_home() {
+	if [[ -v JAVA_HOME_18 ]]; then
+		echo $JAVA_HOME_18;
+	elif [[ -v JAVA_HOME_17 ]]; then
+		echo $JAVA_HOME_17;
+	elif [[ -v JAVA_HOME_16 ]]; then
+		echo $JAVA_HOME_16;
+	else
+		echo $JAVA_HOME;
+	fi
+}
+
+$(get_java_home)/bin/java -cp "$SCRIPT_DIR/dist:$SCRIPT_DIR/bin/antlr-4.13.0-complete.jar:$SCRIPT_DIR/bin/gson-2.10.1.jar" grammar_parser
