@@ -139,7 +139,20 @@ export class Expression extends Token {
         this.return = options.return ?? ThrowNotEnoughArgsOfToken();
     }
 }
-export class Delimiter extends Token {}
+export class Delimiter extends Token {
+    /**
+     * @param {TokenOptions & {
+    *  origin?: any,
+    * }} options
+    **/
+   
+    constructor(options = {}) {
+        super(options);
+        
+       /** @type {any} */
+       this.origin = options.origin;
+    }
+}
 export class PreProcessor extends Delimiter {
     /**
      * @param {TokenOptions & {
@@ -153,8 +166,6 @@ export class PreProcessor extends Delimiter {
        
        /** @type {string} */
        this.value = options.value ?? '';
-       /** @type {any} */
-       this.origin = options.origin;
    }
 }
 
@@ -163,6 +174,7 @@ export class Comment extends Delimiter {
     /**
      * @param {TokenOptions & {
      *  comment?: string,
+     *  origin?: any,
      * }} options
      **/
     
@@ -177,6 +189,7 @@ export class CommentBlock extends Comment {}
 export class Annotation extends Comment {
     /**
      * @param {TokenOptions & {
+     *  name?: string,
      *  value?: any,
      * }} options
      **/
@@ -184,6 +197,8 @@ export class Annotation extends Comment {
     constructor(options = {}){
         super(options);
         
+        /** @type {string} */
+        this.name = options.name;
         /** @type {any} */
         this.value = options.value;
     }
@@ -644,8 +659,8 @@ export class Return extends Statement {
     constructor(options = {}) {
         super(options);
         
-        /** @type {Expression} */
-        this.value = options.value ?? ThrowNotEnoughArgsOfToken();
+        /** @type {Expression?} */
+        this.value = options.value ?? null;
     }
 }
 
@@ -875,6 +890,27 @@ export class NoSuchFunction extends TreeError {}
 export class NoSuchOperator extends TreeError {}
 export class NoSuchFile extends TreeError {}
 
+const VerboseRegExp = (function init_once () {
+    const cleanupregexp = /(?<!\\)[\[\]]|\s+|\/\/[^\r\n]*(?:\r?\n|$)/g
+    return function first_parameter (pattern) {
+        return function second_parameter (flags) {
+            flags = flags.raw[0].trim()
+            let in_characterclass = false
+            const compressed = pattern.raw[0].replace(
+                cleanupregexp,
+                function on_each_match (match) {
+                    switch (match) {
+                        case '[': in_characterclass = true; return match
+                        case ']': in_characterclass = false; return match
+                        default: return in_characterclass ? match : ''
+                    }
+                }
+            )
+            return flags ? new RegExp(compressed, flags) : new RegExp(compressed)
+        }
+    }
+})();
+
 export class Scope {
     static OTHER_TO_OPNAME = {
         '=': 'ass', '++': 'inc', '--': 'dec',
@@ -912,6 +948,7 @@ export class Scope {
         this.exps_stack = [[]];
         this.pexps_stack = 0;
         
+        this.directives = [];
         this.assigment = [];
         this.addPostfix = null;
         // this.directOutput = false;
@@ -1275,10 +1312,10 @@ export class Scope {
         return this.isPreProcess != 0;
     }
     
-    // eslint-disable-next-line no-unused-vars
-    pushDirective(node) {
-        // console.log(node);
-    }
+    // /** @param {Directive} node */
+    // pushDirective(node) {
+    //     this.directives.push(node);
+    // }
     
     /**
      * @param {string} fpath 
@@ -1389,12 +1426,106 @@ export class Scope {
     /**
      * @param {Comment} node
      */
-    processAnnotation(node) {
-        for (let anno of node.comment.matchAll(/@(\w+)/g)) {
-            this.annotationsPush(new Annotation({ value: anno[1] }));
+    *processAnnotation(node) {
+        if (this.isPreProcessor()) {
+            return yield node;
         }
         
-        return node;
+        let content = node.comment;
+        
+        // let lines = content.split('\n').map((v) => { return v.trim(); });
+        
+        if (!this.annoRegex) {
+            this.annoRegex =  VerboseRegExp`
+                (?:
+                    #.+\n
+                    | (?<full>
+                        @(?:
+                              (?<name_1 > inline   )
+                            | (?<name_12> noinline )
+                            | (?<name_2 > debug    )
+                            | (?<name_3 > include  ) \s* "(?<path_1 >[^"]+?)"
+                            | (?<name_4 > type     ) \s+  (?<type_1> \S+)
+                            | (?<name_5 > return   ) \s+  (?<type_2> \S+)
+                            | (?<name_6 > define   ) \s+  (?<arg1_1> \S+)     \s+ (?<arg2_1> .+)
+                            | (?<name_7 > ifdef    ) \s+  (?<arg1_2>  .+)
+                            | (?<name_8 > ifndef   ) \s+  (?<arg1_3>  .+)
+                            | (?<name_9 > compiler ) \s+  (?<arg1_4> \S+)     \s+ (?<arg2_2> .+)
+                            | (?<name_10> error    ) \s+  (?<msg _1>  .+)
+                            | (?<name_11> warn     ) \s+  (?<msg _2>  .+)
+                        )
+                    )
+                )
+            ` `img`;
+        }
+        
+        // console.log(content);
+        for (let matched of content.matchAll(this.annoRegex)) {
+            let cap = {};
+            
+            for (let group in matched.groups) {
+                if (matched.groups[group])
+                    cap[group.match(/^(.+?)(?:_\d+)?$/)[1]] = matched.groups[group];
+            }
+            
+            if (!cap.full)
+                continue;
+            
+            let anno = null;
+            let name = cap.name;
+            let saveAnnos;
+            
+            switch (name) {
+                case 'inline':
+                case 'noinline':
+                case 'debug':
+                    anno = new Annotation({ name: name });
+                    break;
+                
+                case 'include':
+                    anno = new Annotation({ name: name, value: { path: cap.path } });
+                    break;
+                
+                case 'type':
+                case 'return':
+                    anno = new Annotation({ name: name, value: { type: cap.type } });
+                    break;
+                
+                case 'define':
+                    saveAnnos = this.annotationsPop();
+                    yield this.BlockFromRaw(cap.arg2);
+                    this.annotationsPushAll(saveAnnos);
+                    anno = new Annotation({ name: name, value: { name: cap.arg1, arg: cap.arg2, code: this.includePop() } });
+                    break;
+                
+                case 'ifdef':
+                case 'ifndef':
+                    saveAnnos = this.annotationsPop();
+                    yield this.BlockFromRaw(cap.arg1);
+                    this.annotationsPushAll(saveAnnos);
+                    anno = new Annotation({ name: name, value: { arg: cap.arg1, code: this.includePop() } });
+                    break;
+                
+                case 'compiler':
+                    anno = new Annotation({ name: name, value: { name: cap.arg1, arg: cap.arg2 } });
+                    break;
+                    
+                case 'error':
+                case 'warn':
+                    anno = new Annotation({ name: name, value: { msg: cap.msg } });
+                    break;
+                
+                default: throw new Error(`Not registred annotation: ${name}`);
+            }
+            
+            this.annotationsPush(anno);
+        }
+        
+        // for (let anno of node.comment.matchAll(/@(\w+)/g)) {
+        //     this.annotationsPush(new Annotation({ value: anno[1] }));
+        // }
+        
+        yield node;
     }
 }
 
@@ -1518,7 +1649,7 @@ function *travel(node, scope, depth = 0) {
                     throw Error('This is not allowed');
                 }
                 
-                const directives = [];
+                let directives = []
                 
                 for (let node of travel(childNodes, scope, depth)){
                     scope.EnteredNode(node);
@@ -1538,9 +1669,9 @@ function *travel(node, scope, depth = 0) {
                 break;
                 
             case 'directive':
-                if (!scope.isPreProcessor()) {
-                    throw Error('This is preProccess instuction');
-                }
+                // if (!scope.isPreProcessor()) {
+                //     throw Error('This is preProccess instuction');
+                // }
                 
                 let name;
                 let value;
@@ -1555,8 +1686,7 @@ function *travel(node, scope, depth = 0) {
                             break;
                             
                         case node instanceof Var:          vars.push(node);          break;
-                        case node instanceof PreProcessor: yield node;               break;
-                        case node instanceof Delimiter:                              break;
+                        case node instanceof Delimiter:    yield node;               break;
                         case node instanceof Promise:      yield node;               break;
                         default: throw new UnexpectedToken(node);
                     }
@@ -1808,6 +1938,8 @@ function *travel(node, scope, depth = 0) {
                 break;
                 
             case 't_return':
+                let t_return = null;
+                
                 for (let node of travel(childNodes, scope, depth)){
                     scope.EnteredNode(node);
                     switch(true) {
@@ -1817,18 +1949,18 @@ function *travel(node, scope, depth = 0) {
                             
                             throw new UnexpectedToken(node);
                         case node instanceof LexemKeyword:                                    break;
-                        case node instanceof Expression:
-                            yield new Return({
-                                annotations: scope.annotationsPop(),
-                                value: node,
-                            });
-                            break;
+                        case node instanceof Expression:   t_return = node;                   break;
                         case node instanceof Delimiter:    yield node;                        break;
                         case node instanceof Promise:      yield node;                        break;
                         default: throw new UnexpectedToken(node);
                     }
                     scope.LeaveNode(node);
                 }
+                
+                yield new Return({
+                    annotations: scope.annotationsPop(),
+                    value: t_return,
+                });
                 break;
                 
             case 't_condition':
@@ -2659,7 +2791,9 @@ function *travel(node, scope, depth = 0) {
                             let content = /** @type {string} */ (node.text);
                             
                             if (content.substring(0,2) == '#[') {
-                                yield scope.processAnnotation(new CommentBlock({ comment: content }));
+                                yield* scope.processAnnotation(
+                                    new CommentBlock({ comment: content.slice(2).slice(0, -2), origin: toToken(node) })
+                                );
                             } else if (content.substring(0,8) == '#include') {
                                 yield new PPinclude({ value: content, origin: toToken(node) });
                             } else if (content.substring(0,6) == '#ifdef') {
@@ -2671,7 +2805,9 @@ function *travel(node, scope, depth = 0) {
                             } else if (content.substring(0,6) == '#endif') {
                                 yield new PPendif({ value: content, origin: toToken(node) });
                             } else {
-                                yield scope.processAnnotation(new Comment({ comment: content }));
+                                yield* scope.processAnnotation(
+                                    new Comment({ comment: content.slice(1), origin: toToken(node) })
+                                );
                             }
                             break;
                         case node instanceof Promise:    yield node; break;
@@ -2925,6 +3061,7 @@ function *travel(node, scope, depth = 0) {
                     case is_len(1) && is_inst([Call]):
                     // case is_len(1) && is_inst([StringCall]):
                     // case is_len(1) && is_inst([Assignment]):
+                        exps[0].annotations = exps[0].annotations.concat(expr_anno);
                         yield exps[0]; break;
                         
                     // case is_len(2) && is_inst([Var, LexemOpIncDec]):
@@ -2994,6 +3131,7 @@ function *travel(node, scope, depth = 0) {
                         break;
                         
                     case is_len(1) && is_inst([Expression]):
+                        exps[0].annotations = exps[0].annotations.concat(expr_anno);
                         yield exps[0];
                         break;
                         
@@ -3067,10 +3205,10 @@ function *travel(node, scope, depth = 0) {
                                     let t_call_method_str_method = exps[i].value[2];
                                     
                                     let t_call_string = new StringCall({
-                                        annotations: expr_anno,
                                         callee: t_call_method_str_callee,
                                         return: t_call_method_str_type ?? scope.void,
                                         arguments: t_call_method_str_args,
+                                        ...scope.getOP('stringcall', []),
                                     });
                                     
                                     if (t_call_method_str_method) {
@@ -3110,6 +3248,7 @@ function *travel(node, scope, depth = 0) {
                             }
                         }
                         
+                        first.annotations = first.annotations.concat(expr_anno);
                         yield first;
                         break;
                     
@@ -3148,31 +3287,31 @@ async function preProccess(node, scope) {
             }
         }
         
-        if (type == 'directive') {
-            let preProcessors = [];
+        // if (type == 'directive') {
+        //     let dmtrs = [];
             
-            for (let dnode of travel([node], scope)){
-                if (dnode instanceof PreProcessor) {
-                    preProcessors.push(dnode.origin);
-                    continue;
-                }
+        //     for (let dnode of travel([node], scope)){
+        //         if (dnode instanceof Delimiter) {
+        //             dmtrs.push(dnode.origin);
+        //             continue;
+        //         }
                 
-                if (dnode instanceof Directive) {
-                    scope.pushDirective(dnode);
-                    continue;
-                }
+        //         if (dnode instanceof Directive) {
+        //             scope.pushDirective(dnode);
+        //             continue;
+        //         }
                 
-                throw new UnexpectedToken(dnode);
-            }
+        //         throw new UnexpectedToken(dnode);
+        //     }
             
-            if (!preProcessors.length) {
-                return;
-            }
+        //     if (!dmtrs.length) {
+        //         return;
+        //     }
             
-            return {
-                '#dmtr': preProcessors,
-            }
-        }
+        //     return {
+        //         '#dmtr': dmtrs,
+        //     }
+        // }
         
         if (/expr\d{1,2}/.test(type) && currchlds.length == 1) {
             let [ ntype ] = Object.keys(currchlds[0]);
@@ -3236,6 +3375,10 @@ async function preProccess(node, scope) {
         @compiler \s+ .+ [any] (set compiler option for this token and children)
         @error \s+ [any] (error if executed)
         @warn \s+ [any] (warn if executed)
+        
+    // TODO: для некоторых опцый компилятора сделать ссылку на аннотацию:
+        @pretty
+        @printops
 */
 
 export default async function(json, e2data, JParser) {

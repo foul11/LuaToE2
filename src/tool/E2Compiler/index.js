@@ -64,7 +64,7 @@ const argv = await yargs(hideBin(process.argv))
 		const json = await java.parser(grammars, argv.java, argv.in, !argv.UseJava);
 		const fat = new E2Data(argv.fat, { warnConflictOps: false });
 		
-		console.log(await tree.compile(await tree.clear(json, fat, parser), fat, {}));
+		console.log(await tree.compile(await tree.clear(json, fat, parser), fat, { pretty: true, opcounter: true, debug: false }));
 		// console.log(json);
 	})
 	.command('generate', 'Generate java from grammar', (yargs) => {

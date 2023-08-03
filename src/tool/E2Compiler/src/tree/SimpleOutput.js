@@ -58,13 +58,30 @@ function tokensToString(node, opt) {
     }
 }
 
+function stringJoin(obj, glue) {
+    let join = [];
+    
+    for (let val of Object.values(obj)) {
+        if (typeof val == 'string') {
+            join.push(val);
+        }
+    }
+    
+    return join.join(glue);
+}
+
 // eslint-disable-next-line no-unused-vars
 function tokenAnnotations(node, opt) {
     let anno = [];
     
     if (node.annotations.length) {
         for (let ann of node.annotations) {
-            anno.push(`@${ann.value}`);
+            let args;
+            
+            if (ann.value)
+                args = stringJoin(ann.value, ' ');
+            
+            anno.push(`@${ann.name}${args ? ` ${args}` : ''}`);
         }
     }
     
