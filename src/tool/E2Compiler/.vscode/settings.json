@@ -1,0 +1,9 @@
+{
+    "java.project.sourcePaths": [
+        "grammars\\dist"
+    ],
+    "java.project.outputPath": "dist",
+    "java.project.referencedLibraries": [
+        "grammars/bin/**/*.jar"
+    ]
+}

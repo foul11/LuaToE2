@@ -4,23 +4,48 @@ import { fileURLToPath } from 'url';
 import process from 'process';
 import path from 'path';
 
-import MultiClass from './src/MultiClass.js';
-import tree from './src/tree.js';
-import java from './src/parser.java.js';
+import E2Data from './src/tree/E2Data.js';
+import grammarsBuilder from './src/grammars.js';
 import { hideBin } from 'yargs/helpers';
-// import { traverseDir } from './src/helpers.js';
+import tree from './src/tree.js';
 import yargs from 'yargs';
-import LoadData, { E2Data } from './src/tree/LoadData.js';
-import { globIterateSync } from 'glob';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const grammars = path.join(__dirname, 'grammars');
+const grammarsdir = path.join(__dirname, 'grammars');
 
-// TODO: преобразуем дерево antlr в свое крутое
-// 		 после парсим и обрабатываем разные штуки которые я хотел
-//       мб потом добавить проверку валидности и всего такого
+let grammars = null;
+/** @type {import('./src/grammars.js').Workers} */
+let parser = null;
+/** @type {import('./src/tree/E2Data.js').default} */
+let fat = null;
 
-/* eslint-disable no-unused-vars */ 
+async function init(argv) {
+	let threads = argv.threads;
+	let useJava = argv.UseJava;
+	
+	grammars = grammarsBuilder(grammarsdir, argv.IncDir, argv.java);
+	
+	if (argv.grammar) {
+		try {
+			await grammars.build();
+			
+			process.stdout.write('\n');
+			console.log('Generate success');
+		} catch(e) {
+			process.stdout.write('\n');
+			console.error(`Generate error with code: ${e.toString()}`);
+		}
+	}
+	
+	parser = grammars.create({
+		countJava: threads,
+		liteonly: !useJava
+	});
+	
+	fat = new E2Data(argv.fat, { warnConflictOps: false, warnConflictRetType: false });
+}
+
+// eslint-disable-next-line no-unused-vars
 const argv = await yargs(hideBin(process.argv))
 	.scriptName("E2Compiler")
 	.usage('$0 <cmd> [args]')
@@ -49,6 +74,19 @@ const argv = await yargs(hideBin(process.argv))
 		describe: 'use java binaries in lexer and parser',
 		default: true
 	})
+	.option('threads', {
+		requiresArg: true,
+		type: 'number',
+		describe: 'count threads (proccess) for use',
+		default: 4
+	})
+	.option('grammar', {
+		requiresArg: false,
+		type: 'boolean',
+		describe: 'rebuild grammars',
+		default: false
+	})
+	.middleware(init)
 	.command('build <in> <out>', 'Compile file', (yargs) => {
 		yargs.positional('in', {
 			type: 'string',
@@ -60,46 +98,41 @@ const argv = await yargs(hideBin(process.argv))
 			describe: 'output file',
 		})
 	}, async (argv) => {
-		const parser = java.parserWrapper(grammars, argv.java, argv.IncDir, !argv.UseJava);
-		const json = await java.parser(grammars, argv.java, argv.in, !argv.UseJava);
-		const fat = new E2Data(argv.fat, { warnConflictOps: false });
+		const input = /** @type {string} */ (argv.in);
 		
-		console.log(await tree.compile(await tree.clear(json, fat, parser), fat, { pretty: true, opcounter: true, debug: false }));
-		// console.log(json);
+		console.log(
+			await tree.compile(
+				await tree.clear(await parser.parseFile(input), fat, parser), fat,
+				{
+					pretty: true,
+					opcounter: true,
+					debug: true
+				}
+			)
+		);
 	})
-	.command('generate', 'Generate java from grammar', (yargs) => {
-	}, async (argv) => {
+	.command('generate', 'Build grammars', null, async () => {
 		try {
-			await java.grammarGenerate(grammars, argv.java);
+			await grammars.build();
 			
 			process.stdout.write('\n');
 			console.log('Generate success');
 		} catch(e) {
 			process.stdout.write('\n');
-			console.error(`Generate error with code: ${e}`);
+			console.error(`Generate error with code: ${e.toString()}`);
 		}
 	})
-	// .command('update [in]', 'updating types and function from json', (yargs) => {
-	// 	yargs.positional('in', {
-	// 		type: 'string',
-	// 		default: 'data/e2.dat',
-	// 		describe: 'input file',
-	// 	})
-	// }, async (argv) => {
-	// 	let path = /** @type {string} */ (argv.in);
-		
-	// 	console.log(fs.readFileSync(path));
-	// })
 	.command('printTree <in>', '', (yargs) => {
 		yargs.positional('in', {
 			type: 'string',
 			describe: 'input file'
 		})
 	}, async (argv) => {
-		const parser = java.parserWrapper(grammars, argv.java, argv.IncDir, !argv.UseJava);
-		const json = await java.parser(grammars, argv.java, argv.in, !argv.UseJava);
+		const input = /** @type {string} */ (argv.in);
 		
-		tree.simpleOutput(await tree.clear(json, new E2Data(argv.fat), parser));
+		tree.simpleOutput(
+			await tree.clear(await parser.parseFile(input), fat, parser)
+		);
 	})
 	.command('test [subcommand]', 'test command', (yargs) => {
 		yargs.positional('subcommand', {
@@ -109,80 +142,12 @@ const argv = await yargs(hideBin(process.argv))
 			type: 'string',
 		})
 	}, async (argv) => {
+		const input = /** @type {string} */ (argv.target);
+		
 		switch(argv.subcommand) {
-			case 'multicalss':
-				class A {
-					test1(){
-						console.log('A', this);
-					}
-				}
-				
-				class B {
-					test2(){
-						console.log('B', this);
-					}
-				}
-				
-				class C extends MultiClass(A, B) {
-					test1(){
-						console.log('C', this);
-					}
-				}
-				
-				class D extends MultiClass(C, B) {
-					test2(){
-						console.log('D', this);
-					}
-				}
-				
-				let c = new C();
-				let a = new A();
-				let b = new B();
-				let d = new D();
-				
-				console.log(C.prototype); // A + B
-				console.log(D.prototype); // C + B
-				
-				console.log(A instanceof B); // false
-				console.log(B instanceof A); // false
-				console.log(C.prototype, C.prototype instanceof A); // true/false
-				console.log(C.prototype, C.prototype instanceof B); // true/false
-				console.log(C instanceof A); // false
-				console.log(a instanceof A); // true
-				console.log(b instanceof A); // false
-				console.log();
-				console.log(c instanceof C); // true
-				console.log(c instanceof A); // true
-				console.log(c instanceof B); // true
-				
-				c.test1(); // C C
-				c.test2(); // B C
-				d.test2(); // D D
-				break;
-				
-			case 'e2s':
-				let fat = new E2Data(argv.fat, { warnConflictOps: false });
-				
-				for(let file of globIterateSync(/** @type {string} */ (argv.target) ?? './e2s/**/*.txt')) {
-					console.log(file);
-					
-					try {
-						const parser = java.parserWrapper(grammars, argv.java, argv.IncDir, !argv.UseJava);
-						const json = await java.parser(grammars, argv.java, file, !argv.UseJava);
-						
-						await tree.clear(json, fat, parser);
-					} catch (e) {
-						console.error(e);
-					}
-				}
-				break;
-				
-			case 'loaddat':
-				console.log(
-					LoadData(argv.fat)
-				);
-				debugger
-				break;
+			case 'multicalss':  await import('./tests/MultiClass.js');                     			 break;
+			case 'e2s':        (await import('./tests/e2s.js')        ).default(input, parser, fat); break;
+			case 'loaddat':    (await import('./tests/loaddat.js')    ).default(argv.fat); 			 break;
 		}
 	})
 	.epilog(`use lua "file.Write('fat.dat', util.TableToJSON({ wire_expression2_funcs, wire_expression_types }))" for collect data`)
@@ -192,8 +157,5 @@ const argv = await yargs(hideBin(process.argv))
 	})
 	.help()
 	.argv
-/* eslint-enable no-unused-vars */ 
-
-// console.log(argv)
 
 process.exit(0);

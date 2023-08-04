@@ -14,7 +14,7 @@ get_java_home() {
 	fi
 }
 
-$SCRIPT_DIR/bin/antlr -Dlanguage=Java -lib $SCRIPT_DIR/ -o $SCRIPT_DIR/dist -visitor -Xexact-output-dir $SCRIPT_DIR/E2.g4
+$SCRIPT_DIR/bin/antlr -Dlanguage=Java -lib $SCRIPT_DIR/ -o $SCRIPT_DIR/dist -visitor -package dist -Xexact-output-dir $SCRIPT_DIR/E2.g4
 $SCRIPT_DIR/bin/antlr -Dlanguage=JavaScript -lib $SCRIPT_DIR/ -o $SCRIPT_DIR/dist -visitor -Xexact-output-dir $SCRIPT_DIR/E2.g4
 
-$(get_java_home)/bin/javac -cp "$SCRIPT_DIR/dist/:$SCRIPT_DIR/bin/antlr-4.13.0-complete.jar:$SCRIPT_DIR/bin/gson-2.10.1.jar" $SCRIPT_DIR/grammar_parser.java -d $SCRIPT_DIR/dist/
+$(get_java_home)/bin/javac -cp "$SCRIPT_DIR/dist/:$SCRIPT_DIR/bin/antlr-4.13.0-complete.jar:$SCRIPT_DIR/bin/gson-2.10.1.jar" -d $SCRIPT_DIR/dist/ $SCRIPT_DIR/grammar_parser.java $SCRIPT_DIR/dist/*.java

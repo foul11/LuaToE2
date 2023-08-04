@@ -1,4 +1,4 @@
-import { Annotation, Assignment, Binary, Block, Break, Call, Continue, Directive, DoWhile, Expression, For, Foreach, Func, If, Index, KV, Literal, Lookup, Return, Root, Statement, StringCall, Switch, SwitchBlock, SwitchCase, SwitchDefault, SwitchToken, Ternary, Try, Type, Unary, Var, VarArg, While, Event, PreProcessor, Include, Token, PPinclude } from "./Clear.js";
+import { Assignment, Binary, Block, Break, Call, Continue, Directive, DoWhile, Expression, For, Foreach, Func, If, Index, KV, Literal, Lookup, Return, Root, Statement, StringCall, Switch, SwitchBlock, SwitchCase, SwitchDefault, SwitchToken, Ternary, Try, Type, Unary, Var, VarArg, While, Event, PreProcessor, Include, Token, PPinclude } from "./Clear.js";
 import util from 'node:util';
 
 /* eslint no-unused-vars: 0 */
@@ -12,19 +12,21 @@ export class UnexpectedNode extends CompileError {
 
 /**
  * @typedef {{
- *  pretty?: boolean,
- *  usetab?: boolean,
- *  tabsize?: number,
- *  tabrsize?: number,
- *  opcounter?: boolean,
- *  opcounterLen?: number,
- *  op?: {
  *   stmt?: boolean,
  *   expr?: boolean,
  *   ass?: boolean,
  *   call?: boolean,
  *   total?: boolean,
- *  },
+ *   align?: number
+ *  }} opcounterOptions
+ * 
+ * @typedef {{
+ *  pretty?: boolean,
+ *  usetab?: boolean,
+ *  tabsize?: number,
+ *  tabrsize?: number,
+ *  opcounter?: boolean,
+ *  op?: opcounterOptions,
  *  typecheck?: boolean,
  *  debug?: boolean,
  *  warn?: boolean,
@@ -48,7 +50,7 @@ class Scope {
     };
     
     /**
-     * @typedef {import('./LoadData.js').E2Data} E2Data
+     * @typedef {import('./E2Data.js').default} E2Data
      * @param {Options} options
      * @param {E2Data} e2data
      */
@@ -58,23 +60,15 @@ class Scope {
         this.tabsize = options.tabsize ?? 4;
         this.tabrsize = options.tabrsize ?? 4;
         this.opcounter = options.opcounter ?? false;
-        /**
-         *  @type {{
-         *   stmt?: boolean,
-         *   expr?: boolean,
-         *   ass?: boolean,
-         *   call?: boolean,
-         *   total?: boolean,
-         *  }}
-         */
+        /** @type {opcounterOptions} */
         this.op = Object.assign({
             stmt: true,
             expr: true,
             ass: true,
             call: true,
             total: true,
+            align: 5,
         }, options.op);
-        this.opcounterLen = options.opcounterLen ?? 5;
         this.typecheck = options.typecheck ?? true; // TODO: curr not implemented
         this.debug = options.debug ?? false;
         this.warn = options.warn ?? true;
@@ -222,7 +216,7 @@ class Scope {
         
         this.pushBufferStack();
             this.pushBuffer('#[');
-            this.pushBuffer(`${str}${expr ? '' : ' '.repeat(this.opcounterLen - str.length)}`);
+            this.pushBuffer(`${str}${expr ? '' : ' '.repeat(this.op.align - str.length)}`);
             this.pushBuffer(']#');
         let out = this.bufferToString();
         

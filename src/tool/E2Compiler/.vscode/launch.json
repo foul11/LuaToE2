@@ -7,12 +7,12 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch Program",
+            "name": "Build",
             "skipFiles": [
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["build", "input.txt", "out.txt"],
+            "args": ["build", "../input.txt", "out.txt"],
             "outputCapture": "std",
         },
         {
@@ -29,7 +29,7 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Build grammars",
+            "name": "BuildGrammars",
             "skipFiles": [
                 "<node_internals>/**"
             ],
@@ -41,16 +41,13 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Tests (e2s)",
+            "name": "BuildGrammars and Build",
             "skipFiles": [
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["test", "e2s", "--fat", "data/[izba,meta]*"],
-            // , "--target", "e2s\railbuilder_v2.txt"
-            // , "--target", "input.txt"
+            "args": ["build", "../input.txt", "out.txt", "--grammar"],
             "outputCapture": "std",
-            // "preLaunchTask": "buildGrammar"
         },
         {
             "type": "node",
@@ -69,12 +66,14 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Tests loaddat",
+            "name": "Tests (e2s)",
             "skipFiles": [
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["test", "loaddat"],
+            "args": ["test", "e2s", "--fat", "data/[izba,meta]*"],
+            // , "--target", "e2s\railbuilder_v2.txt"
+            // , "--target", "input.txt"
             "outputCapture": "std",
             // "preLaunchTask": "buildGrammar"
         },

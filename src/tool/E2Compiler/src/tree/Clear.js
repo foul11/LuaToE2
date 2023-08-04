@@ -927,11 +927,11 @@ export class Scope {
     };
     
     /**
-     * @typedef {import('./LoadData.js').E2Data} E2Data
+     * @typedef {import('./E2Data.js').default} E2Data
      * @param {E2Data} e2data
      */
     
-    constructor(e2data, JParser = null){
+    constructor(e2data, parser = null){
         /** @type {Object<string, Var>} */
         this.global = {};
         /** @type {Object<string, Var>[]} */
@@ -963,12 +963,12 @@ export class Scope {
         
         this.customFunc = {};
         
-        this.JParser = JParser;
-        this.JParserMutex = new Mutex();
+        this.parser = parser;
+        this.parserMutex = new Mutex();
         
         /* CONF */
         this.disabledCheckType = false;
-        this.oneByOneInclude = true;
+        this.oneByOneInclude = false;
         /* CONF */
         
         /** @type {E2Data} */
@@ -1325,7 +1325,7 @@ export class Scope {
         let origPath = fpath;
         fpath = fpath.toLowerCase();
         
-        if (!this.JParser) throw Error('JavaParserNotFound');
+        if (!this.parser) throw Error('ParserNotFound');
         
         if (this.includeCycle[fpath]) {
             throw Error('CycleInclude');
@@ -1341,11 +1341,11 @@ export class Scope {
             let release;
             
             if (this.oneByOneInclude) {
-                release = await this.JParserMutex.acquire();
+                release = await this.parserMutex.acquire();
             }
             
             try {
-                return preProccess(await this.JParser(origPath), this);
+                return preProccess(await this.parser.parseFile(origPath), this);
             } catch(e) {
                 throw new NoSuchFile(origPath);
             } finally {
@@ -1364,7 +1364,7 @@ export class Scope {
     async IncludeToBlock(fpath) {
         fpath = fpath.toLowerCase();
         
-        if (!this.JParser) throw Error('JavaParserNotFound');
+        if (!this.parser) throw Error('ParserNotFound');
         
         if (this.includeCycle[fpath]) {
             throw Error('CycleInclude');
@@ -1394,9 +1394,9 @@ export class Scope {
     }
     
     async BlockFromRaw(code) {
-        if (!this.JParser) throw Error('JavaParserNotFound');
+        if (!this.parser) throw Error('ParserNotFound');
         
-        for (let node of travel([await preProccess(await this.JParser(code, true), this)], this)) {
+        for (let node of travel([await preProccess(await this.parser.parseCode(code), this)], this)) {
             if (node instanceof Promise) {
                 this.includePush(await node);
             }
@@ -1533,7 +1533,6 @@ export class Scope {
  * @param {any} node 
  * @param {Scope} scope 
  * @param {number} depth 
- * @returns 
  */
 function *travel(node, scope, depth = 0) {
     depth++;
@@ -3205,10 +3204,10 @@ function *travel(node, scope, depth = 0) {
                                     let t_call_method_str_method = exps[i].value[2];
                                     
                                     let t_call_string = new StringCall({
+                                        ...scope.getOP('stringcall', []),
                                         callee: t_call_method_str_callee,
                                         return: t_call_method_str_type ?? scope.void,
                                         arguments: t_call_method_str_args,
-                                        ...scope.getOP('stringcall', []),
                                     });
                                     
                                     if (t_call_method_str_method) {
@@ -3381,8 +3380,8 @@ async function preProccess(node, scope) {
         @printops
 */
 
-export default async function(json, e2data, JParser) {
-    let scope = new Scope(e2data, JParser);
+export default async function(json, e2data, parser) {
+    let scope = new Scope(e2data, parser);
     
     for (let node of travel([await preProccess(json, scope)], scope)){
         if (node instanceof Promise) {

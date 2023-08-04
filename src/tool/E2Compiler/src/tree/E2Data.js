@@ -1,14 +1,18 @@
 import { globIterateSync } from 'glob';
-import fs from 'fs';
 import { Type } from './Clear.js';
+import fs from 'fs';
 
-export class E2Data {
+export default class E2Data {
     /**
-     * @param {string} glob 
-     * @param {{
+     * @typedef {{
      *  warnConflictRetType?: boolean,
      *  warnConflictOps?: boolean,
-     * }} settings 
+     * }} E2DataSettings
+     */
+    
+    /**
+     * @param {string} glob 
+     * @param {E2DataSettings} settings 
      */
     constructor(glob, settings = {}) {
         this.void = new Type('void', '');
@@ -70,11 +74,3 @@ export class E2Data {
 
 class IncompatibleTypes extends Error {}
 class TypeNotFound extends Error {}
-
-/**
- * @param {string} path
- * @return {E2Data}
- */
-export default function(path) {
-    return new E2Data(path);
-}
