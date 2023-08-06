@@ -3,6 +3,7 @@
 grammars/.antlr/
 e2s/
 test/
+out/
 
 #--- NODE ---#
 

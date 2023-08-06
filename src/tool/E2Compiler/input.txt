@@ -1,9 +1,16 @@
 
+
 #include "button"
-if(first()){
-    print(1)
+
+# @ typedef table mega
+# @ disablect
+# @ compiler chlen false
+if(1) {
+    
+} elseif (2) {
+    
+} elseif (3) {
+    
 } else {
-    if(1) {
-        print(2)
-    }
+    
 }

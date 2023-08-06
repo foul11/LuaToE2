@@ -2,7 +2,7 @@
 
 if(first()){
 	function table table:clua_print(Args:table){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_instance"){
 			error("clua_* not run e2func ThisClass not clua_instance: " + This["_class",string])
 		}

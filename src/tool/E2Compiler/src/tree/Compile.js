@@ -27,10 +27,8 @@ export class UnexpectedNode extends CompileError {
  *  tabrsize?: number,
  *  opcounter?: boolean,
  *  op?: opcounterOptions,
- *  typecheck?: boolean,
  *  debug?: boolean,
  *  warn?: boolean,
- *  inlineForceFunc?: boolean,
  *  inlineForceInclude?: boolean,
  * }} Options
  */
@@ -69,16 +67,18 @@ class Scope {
             total: true,
             align: 5,
         }, options.op);
-        this.typecheck = options.typecheck ?? true; // TODO: curr not implemented
         this.debug = options.debug ?? false;
         this.warn = options.warn ?? true;
-        this.inlineForceFunc = options.inlineForceFunc ?? true; // TODO: curr not implemented
-        this.inlineForceInclude = options.inlineForceInclude ?? true; // TODO: curr not implemented
+        this.inlineForceInclude = options.inlineForceInclude ?? false;
         
+        this.nextifelse = false;
         this.decorln = false;
-        this.tab_depth = 0 + (this.opcounter ? 3 : 0);
+        this.tab_depth = 0;
         this.buffer = [[]];
         this.stack = [];
+        this.optionsRevert = [];
+        
+        this.output = {}
         
         /** @type {E2Data} */
         this.e2data = e2data;
@@ -193,7 +193,7 @@ class Scope {
             subWS = Math.ceil(subWS / this.tabrsize);
         
         let char = this.usetab ? '\t' : ' ';
-        this.pushBuffer(char.repeat(Math.max(this.tabsize * this.tab_depth - subWS, 0)));
+        this.pushBuffer(char.repeat(Math.max(this.tabsize * (this.tab_depth + (this.opcounter ? 3 : 0)) - subWS, 0)));
     }
     
     pushBufferLn() {
@@ -252,6 +252,10 @@ class Scope {
         return this.GetPrevNode(1)?.constructor == Block || (this.GetPrevNode(1)?.constructor == Array && this.GetPrevNode(2)?.constructor == Block);
     }
     
+    IsPreUnary() {
+        return this.GetPrevNode(1)?.constructor == Unary;
+    }
+    
     IsPreCall() {
         return this.GetPrevNode(1)?.constructor == Call || (this.GetPrevNode(1)?.constructor == StringCall);
     }
@@ -259,13 +263,16 @@ class Scope {
     /** @param {Token} node @return {boolean} */
     IterateEnter(node) {
         this.stack.push(node);
+        let revert = {};
         
         if (node.annotations) {
             for (let anno of node.annotations) {
                 switch (anno.name) {
                     case 'debug':
-                        if (!this.debug)
+                        if (!this.debug) {
+                            this.optionsRevert.push(revert);
                             return false;
+                        }
                         break;
                     
                     case 'ifdef':
@@ -280,9 +287,42 @@ class Scope {
                     case 'error':
                         console.error(anno.value.msg);
                         break;
+                        
+                    case 'pretty':
+                        revert['pretty'] = this.pretty;
+                        this.pretty = true;
+                        break;
+                        
+                    case 'nopretty':
+                        revert['pretty'] = this.pretty;
+                        this.pretty = false;
+                        break;
+                        
+                    case 'printops':
+                        revert['opcounter'] = this.opcounter;
+                        this.opcounter = true;
+                        break;
+                        
+                    case 'inline':
+                    case 'noinline':
+                        break;
+                        
+                    case 'compiler':
+                        if (this[anno.value.name] === undefined) {
+                            console.error(`Compiler not found settings option: ${anno.value.name}`);
+                            break;
+                        }
+                        
+                        revert[anno.value.name] = this[anno.value.name];
+                        this[anno.value.name] = (new Function(`return ${anno.value.arg}`))();
+                        break;
+                        
+                    default: console.warn(`Compiler Annotation not action: ${anno.name}`); break;
                 }
             }
         }
+        
+        this.optionsRevert.push(revert);
         
         // if (node.PostFix) {
         //     this.pushBuffer(node.PostFix);
@@ -292,11 +332,19 @@ class Scope {
     }
     
     IterateLeave(node) {
-        this.stack.pop();
+        let revert = this.optionsRevert.pop();
+        
+        for (const opt of Object.keys(revert)) {
+            const val = revert[opt];
+            
+            this[opt] = val;
+        }
         
         // if (node.PostFix) {
         //     this.pushBuffer(node.PostFix);
         // }
+        
+        this.stack.pop();
     }
 }
 
@@ -314,6 +362,14 @@ function *it_Root(node, scope) {
         scope.pushBuffer('\n')
         scope.pushBufferLn();
         scope.pushBufferLn();
+    }
+    
+    // needed for optimization:
+    if (scope.pretty) {
+        scope.pushBuffer(`ALWAYS_TRUE = 1`);
+        scope.pushBufferLn();
+    } else {
+        scope.pushBuffer(`ALWAYS_TRUE=1 `);
     }
     
     scope.popTab();
@@ -390,13 +446,30 @@ function *it_Include(node, scope) {
         let sub = 0;
         if (scope.op.stmt)
             sub = scope.pushBufferOPCounter(node);
-        scope.pushBufferTab(sub);
         
-        scope.pushBuffer('#include');
-        scope.pushBufferSpace();
-        scope.pushBuffer('"');
-            scope.pushBuffer(node.path);
-        scope.pushBuffer('"');
+        if (scope.inlineForceInclude || node.annotations.some((val) => val.name == 'inline')) {
+            let dynamic = new If({
+                condition: new Literal({ value: 1, return: new Type('number') }),
+                bodyTrue: node.body.block,
+            });
+            
+            for (let value of Iterate(dynamic, scope)) {
+                scope.pushBuffer(value);
+            }
+        } else {
+            scope.pushBufferStack();
+                for (let value of Iterate(node.body, scope))
+                    scope.pushBuffer(value);
+            scope.output[node.path] = scope.bufferToString();
+            
+            scope.pushBufferTab(sub);
+            scope.pushBuffer('#include');
+            scope.pushBufferSpace();
+            scope.pushBuffer('"');
+                scope.pushBuffer(node.pref);
+                scope.pushBuffer(node.path);
+            scope.pushBuffer('"');
+        }
     yield scope.bufferToString();
 }
 
@@ -418,7 +491,7 @@ function safelyRemoveParentheses (node, scope) {
 function *it_Call(node, scope) {
     scope.pushBufferStack();
         let sub = 0;
-        if (scope.op.call && !scope.IsPreCall())
+        if (scope.op.call && !scope.IsPreCall() && !scope.IsPreUnary())
             sub = scope.pushBufferOPCounter(/** @type {Statement} */ (/** @type {unknown} */ (node)), !scope.IsPreBlock());
         
         if (scope.IsPreBlock())
@@ -466,7 +539,7 @@ function *it_Call(node, scope) {
 function *it_StringCall(node, scope) {
     scope.pushBufferStack();
         let sub = 0;
-        if (scope.op.call)
+        if (scope.op.call && !scope.IsPreUnary())
             sub = scope.pushBufferOPCounter(/** @type {Statement} */ (/** @type {unknown} */ (node)), !scope.IsPreBlock());
         
         if (scope.IsPreBlock())
@@ -571,22 +644,27 @@ function *it_Assignment(node, scope) {
 
 /** @param {Break} node @param {Scope} scope  */
 function *it_Break(node, scope) {
-    let sub = 0;
-    if (scope.op.stmt)
-        sub = scope.pushBufferOPCounter(node);
-    scope.pushBufferTab(sub);
-    
-    yield 'break';
+    scope.pushBufferStack();
+        let sub = 0;
+        if (scope.op.stmt)
+            sub = scope.pushBufferOPCounter(node);
+        scope.pushBufferTab(sub);
+        scope.pushBuffer('break');
+        
+        if (!scope.pretty)
+            scope.pushBuffer(' ');
+    yield scope.bufferToString();
 }
 
 /** @param {Continue} node @param {Scope} scope  */
 function *it_Continue(node, scope) {
-    let sub = 0;
-    if (scope.op.stmt)
-        sub = scope.pushBufferOPCounter(node);
-    scope.pushBufferTab(sub);
-    
-    yield 'continue';
+    scope.pushBufferStack();
+        let sub = 0;
+        if (scope.op.stmt)
+            sub = scope.pushBufferOPCounter(node);
+        scope.pushBufferTab(sub);
+        scope.pushBuffer('continue');
+    yield scope.bufferToString();
 }
 
 /** @param {Return} node @param {Scope} scope  */
@@ -608,22 +686,46 @@ function *it_Return(node, scope) {
     yield scope.bufferToString();
 }
 
+/** @param {Block} node @param {Scope} scope @return {If?} */
+function iselseif(node, scope) {
+    if (node.statements.length == 1 && node.statements[0] instanceof If) {
+        return node.statements[0];
+    }
+    
+    return null;
+}
+
+/** @param {Expression} node @param {Scope} scope @return {Expression} */
+function isalwaytrue(node, scope) {
+    if (node instanceof Literal && node.value == 1) {
+        return new Var({
+            name: 'ALWAYS_TRUE',
+            declareLocal: false,
+            type: new Type('number'),
+        })
+    } else {
+        return node;
+    }
+}
+
 /** @param {If} node @param {Scope} scope  */
-function *it_If(node, scope) { // TODO: elseif
+function *it_If(node, scope) {
     scope.pushBufferStack();
-        if (scope.decorln) {
-            scope.pushBufferTab();
-            scope.pushBufferLn();
-        }
-        
-        let sub = 0;
-        if (scope.op.stmt)
-            sub = scope.pushBufferOPCounter(node);
-        scope.pushBufferTab(sub);
+        if (!scope.nextifelse) {
+            if (scope.decorln) {
+                scope.pushBufferTab();
+                scope.pushBufferLn();
+            }
+            
+            let sub = 0;
+            if (scope.op.stmt)
+                sub = scope.pushBufferOPCounter(node);
+            scope.pushBufferTab(sub);
+        } else scope.nextifelse = false;
         
         scope.pushBuffer('if');
         scope.pushBuffer('(');
-            for (let value of Iterate(node.condition, scope))
+            for (let value of Iterate(isalwaytrue(node.condition, scope), scope))
                 scope.pushBuffer(value);
         scope.pushBuffer(')');
         
@@ -638,13 +740,21 @@ function *it_If(node, scope) { // TODO: elseif
         if (node.bodyFalse) {
             scope.pushBuffer('else');
             
-            scope.pushBuffer('{');
-            scope.pushBufferLn();
-                for (let value of Iterate(node.bodyFalse, scope))
+            let nodeif = iselseif(node.bodyFalse, scope);
+            if (nodeif) {
+                scope.nextifelse = true;
+                
+                for (let value of Iterate(nodeif, scope))
                     scope.pushBuffer(value);
-            scope.pushBufferLn();
-            scope.pushBufferTab();
-            scope.pushBuffer('}');
+            } else {
+                scope.pushBuffer('{');
+                scope.pushBufferLn();
+                    for (let value of Iterate(node.bodyFalse, scope))
+                        scope.pushBuffer(value);
+                scope.pushBufferLn();
+                scope.pushBufferTab();
+                scope.pushBuffer('}');
+            }
         }
     yield scope.bufferToString();
 }
@@ -693,11 +803,13 @@ function *it_SwitchBlock(node, scope) {
                 } else {
                     if (scope.pretty) {
                         scope.pushBufferLn();
-                    } else scope.pushBuffer(' ');
+                    }
                 }
                 
-                scope.pushBufferTab();
                 scope.pushBuffer(value);
+                
+                if (!scope.pretty)
+                    scope.pushBuffer(' ');
             }
         scope.popTab();
         scope.decorln = true;
@@ -710,12 +822,13 @@ function *it_SwitchBlock(node, scope) {
 
 /** @param {SwitchDefault} node @param {Scope} scope  */
 function *it_SwitchDefault(node, scope) {
-    let sub = 0;
-    if (scope.op.stmt)
-        sub = scope.pushBufferOPCounter(node);
-    scope.pushBufferTab(sub);
-    
-    yield 'default,';
+    scope.pushBufferStack();
+        let sub = 0;
+        if (scope.op.stmt)
+            sub = scope.pushBufferOPCounter(node);
+        scope.pushBufferTab(sub);
+        scope.pushBuffer('default,');
+    yield scope.bufferToString();
 }
 
 /** @param {SwitchCase} node @param {Scope} scope  */
@@ -1043,7 +1156,7 @@ function *it_Unary(node, scope) {
 function *it_Binary(node, scope) {
     scope.pushBufferStack();
         let sub = 0;
-        if (scope.op.expr) {
+        if (scope.opcounter && scope.op.expr && !scope.IsPreUnary()) {
             sub = scope.pushBufferOPCounter(node, !scope.IsPreBlock()) + 1;
             scope.pushBuffer('(');
         }
@@ -1076,7 +1189,7 @@ function *it_Binary(node, scope) {
         if (needr)
             scope.pushBuffer(')');
             
-        if (scope.op.expr)
+        if (scope.opcounter && scope.op.expr && !scope.IsPreUnary())
             scope.pushBuffer(')');
     yield scope.bufferToString();
 }
@@ -1085,7 +1198,7 @@ function *it_Binary(node, scope) {
 function *it_Ternary(node, scope) {
     scope.pushBufferStack();
         let sub = 0;
-        if (scope.op.expr)
+        if (scope.op.expr && !scope.IsPreUnary())
             sub = scope.pushBufferOPCounter(node, !scope.IsPreBlock()) + 1;
         
         if (scope.IsPreBlock())
@@ -1172,15 +1285,15 @@ function *Iterate(node, scope) {
 }
 
 /**
- * @param {Root} root 
+ * @param {Include} include 
+ * @param {E2Data} e2data 
  * @param {Options} options
  */
-export default function(root, e2data, options){
+export default function(include, e2data, options){
     let scope = new Scope(options, e2data);
     
     scope.pushBufferStack();
+        for (let {} of Iterate(include, scope));
     
-    for (let {} of Iterate(root, scope));
-    
-    return scope.bufferToString();
+    return [ scope.output, include.path ];
 };

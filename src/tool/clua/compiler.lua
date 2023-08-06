@@ -1,22 +1,24 @@
 #!/bin/env lua
 
-local out = 'out.txt'
-local argv = { ... }
-local argc = select('#', ...)
+-- local argv = { ... }
+-- local argc = select('#', ...)
 local parser = require('dumbparser')
 local F = string.format
 
-if argc < 1 then
-	return print([[Help:
-    ./compiler.lua [filename]
-]])
-end
+-- if argc < 1 then
+	-- return print([[Help:
+    -- ./compiler.lua [filein] [fileout]
+-- ]])
+-- end
 
 
-local file = io.open(argv[1], 'r')
-local code = file:read('*a')
+-- local out = argv[2] or 'out.txt'
+-- local file = io.open(argv[1], 'r')
+-- local code = file:read('*a')
 
-file:close()
+-- file:close()
+
+local code = io.read('*a')
 
 local ast = parser.parse(code)
 
@@ -109,11 +111,10 @@ end
 
 local function compileE2(ast)
 	return [[
-@name clua_compile_output
+@name clua_compiler_output
 @persist [Instace Ctx]:table
 
 #include "lua/clua"
-#include "lua/clua_env"
 
 if(first()){
     local Code = ]] .. _compileE2_Statements(ast) .. [[ 
@@ -134,15 +135,17 @@ end
 
 parser.updateReferences(ast, false)
 
-local file = io.open(out, 'w')
-if not file then
-	return print('failed open to write ', out)
-end
+-- local file = io.open(out, 'w')
+-- if not file then
+	-- return print('failed open to write ', out)
+-- end
 
-file:write(compileE2(ast))
-file:close()
+-- file:write(compileE2(ast))
+-- file:close()
 
 parser.printTree(ast)
+
+io.write(compileE2(ast))
 
 
 -- print(code)

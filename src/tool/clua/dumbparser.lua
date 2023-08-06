@@ -481,7 +481,7 @@ local tostring     = tostring
 local type         = type
 
 local ioOpen       = nil -- io.open
-local ioWrite      = io.write -- io.write
+local ioWrite      = function(...) io.stderr:write(...) end -- io.write
 
 local jit          = jit
 

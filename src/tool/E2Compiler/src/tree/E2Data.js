@@ -29,7 +29,10 @@ export default class E2Data {
             'number': this.default,
         };
         
-        for(let file of globIterateSync(glob)) {
+        if (!settings)
+            settings = {};
+        
+        for(let file of globIterateSync(glob, { windowsPathsNoEscape: true })) {
             let json = JSON.parse(fs.readFileSync(file).toString());
             let fobj = { file };
             

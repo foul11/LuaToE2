@@ -1,10 +1,25 @@
 @name CLua
 
+#@typedef table clua_instance
+#@typedef table clua_variable
+#@typedef table clua_func
+#@typedef table clua_func_ext
+
+#@typedef table clua_context
+#@typedef table clua_contexts
+#@typedef table clua_contexts_in_scope
+
+#@typedef table clua_scope
+#@typedef table clua_scopes
+#@typedef table clua_scopes_in_scope
+
 if(first()){
-	#include "clua_env.txt"
+	##@inline
+	#@includepref lua/
+	#include "clua_env"
 	
 	function table table:cluaNewVar(Type:string){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_instance"){
 			error("cluaNewVar can't use to " + This["_class",string])
 		}
@@ -29,7 +44,7 @@ if(first()){
 	}
 	
 	function table table:cluaGetVar(Name:string){ #[ Prototype [Not use very hard, use stack alternative (identifier)] (DEBUG) ]#
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_context"){
 			error("cluaGetVar can't get var from: " + This["_class",string])
 		}
@@ -62,7 +77,7 @@ if(first()){
 	}
 	
 	function table table:cluaMakeExtFunc(Name:string){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_instance"){
 			error("cluaBuildEnv can't use to " + This["_class",string])
 		}
@@ -86,7 +101,7 @@ if(first()){
 	}
 	
 	function table table:cluaBuildEnv(Vars:table){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_instance"){
 			error("cluaBuildEnv can't use to " + This["_class",string])
 		}
@@ -102,7 +117,7 @@ if(first()){
 	
 	
 	function table table:cluaBuildEnv(){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_instance"){
 			error("cluaBuildEnv can't use to " + This["_class",string])
 		}
@@ -125,12 +140,12 @@ if(first()){
 	}
 	
 	function table table:cluaToFunc(Code:table){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_instance"){
 			error("cluaToFunc not compile to function (This): " + This["_class",string])
 		}
 		
-		#[@DEBUG]#
+		#[@debug]#
 		if(Code["_Type",string] != "block"){
 			error("cluaToFunc not compile to function (Code): " + This["_class",string])
 		}
@@ -144,12 +159,12 @@ if(first()){
 	}
 	
 	function table table:cluaSCOPEpushLastScopeInScope(Scope:table){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_scopes"){
 			error("cluaSCOPEpushLastScopeInScope can't use to: " + This["_class",string])
 		}
 		
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_classsub",string] == "clua_scopes_in_scope"){
 			error("cluaSCOPEpushLastScopeInScope the function can only be used inside the scope context")
 		}
@@ -161,12 +176,12 @@ if(first()){
 	}
 	
 	function table table:cluaSCOPEpush(Code:table){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_scopes"){
 			error("cluaSCOPEpush can't use to: " + This["_class",string])
 		}
 		
-		#[@DEBUG]#
+		#[@debug]#
 		if(!Code["_Type",string]){
 			error("cluaSCOPEpush Statment type is null")
 		}
@@ -201,7 +216,7 @@ if(first()){
 	}
 	
 	function table table:cluaCreateFuncContext(){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_func" & This["_class",string] != "clua_func_ext"){
 			error("cluaCreateFuncContext can't create context: " + This["_class",string])
 		}
@@ -250,7 +265,7 @@ if(first()){
 	}
 	
 	function number table:cluaContextExecute(Perf){
-		#[@DEBUG]#
+		#[@debug]#
 		if(This["_class",string] != "clua_context"){
 			error("cluaContextExecute can't execute: " + This["_class",string])
 		}
@@ -262,14 +277,6 @@ if(first()){
 		local Contexts = This["Contexts",table]
 		local Instance = This["Instance",table]
 		local GVars = Instance["Vars",table]
-		
-		#local ContextsCount = Contexts:ncount()
-		#local Context = Contexts[ContextsCount,table]
-		#local Scopes = Context["Scopes",table]
-		#local ScopesCount = Scopes:ncount()
-		#local LScope = Scopes[ScopesCount,table]
-		#local SVars = LScope["Vars",table]
-		#local Code = LScope["Code",table]
 		
 		while(perf(Perf)){
 			local ContextsCount = Contexts:ncount()
@@ -287,26 +294,11 @@ if(first()){
 				case "block",
 					if(Code:ncount() + 1 == I){
 						Scopes:cluaSCOPEpop()
-						
-						#if(1){ #[ if change context change local variables ]#
-						#	ScopesCount = Scopes:ncount()
-						#	LScope = Scopes[ScopesCount,table]
-						#	SVars = LScope["Vars",table]
-						#	Code = LScope["Code",table]
-						#}
-						
 						break
 					}
 					
 					local Statment = Code[I,table]
 					Scopes:cluaSCOPEpush(Statment)
-					
-					#if(1){ #[ if change context change local variables ]#
-					#	ScopesCount = Scopes:ncount()
-					#	LScope = Scopes[ScopesCount,table]
-					#	SVars = LScope["Vars",table]
-					#	Code = LScope["Code",table]
-					#}
 					break
 					
 				case "ctx", #[ Function in function ]#
@@ -314,16 +306,6 @@ if(first()){
 					
 					if(I == 1){
 						Contexts:pushTable(Ctx)
-						
-						#if(1){ #[ if change context change local variables ]#
-						#	ContextsCount = Contexts:ncount()
-						#	Context = Contexts[ContextsCount,table]
-						#	Scopes = Context["Scopes",table]
-						#	ScopesCount = Scopes:ncount()
-						#	LScope = Scopes[ScopesCount,table]
-						#	SVars = LScope["Vars",table]
-						#	Code = LScope["Code",table]
-						#}
 						break
 					}
 					
@@ -331,13 +313,6 @@ if(first()){
 					local DeadScope = DeadContext["DeadScope",table]
 					
 					Scopes:cluaSCOPEpushReturns(DeadScope["Return",table])
-					
-					#if(1){ #[ if change context change local variables ]#
-					#	ScopesCount = Scopes:ncount()
-					#	LScope = Scopes[ScopesCount,table]
-					#	SVars = LScope["Vars",table]
-					#	Code = LScope["Code",table]
-					#}
 					break
 					
 				case "ext_call", #[ Call e2 function ]#
@@ -346,13 +321,6 @@ if(first()){
 					
 					local Rets = (E2Func)(Instance, VarArg)[table]
 					Scopes:cluaSCOPEpushReturns(Rets)
-					
-					#if(1){ #[ if change context change local variables ]#
-					#	ScopesCount = Scopes:ncount()
-					#	LScope = Scopes[ScopesCount,table]
-					#	SVars = LScope["Vars",table]
-					#	Code = LScope["Code",table]
-					#}
 					break
 					
 				case "call",
@@ -363,23 +331,9 @@ if(first()){
 					if(I == 0){
 						local Statment = Code[I + 1,table]
 						Scopes:cluaSCOPEpush(Statment)
-						
-						#if(1){ #[ if change context change local variables ]#
-						#	ScopesCount = Scopes:ncount()
-						#	LScope = Scopes[ScopesCount,table]
-						#	SVars = LScope["Vars",table]
-						#	Code = LScope["Code",table]
-						#}
 					}elseif(I >= 1){
 						local Statment = Args[I,table]
 						Scopes:cluaSCOPEpush(Statment)
-						
-						#if(1){ #[ if change context change local variables ]#
-						#	ScopesCount = Scopes:ncount()
-						#	LScope = Scopes[ScopesCount,table]
-						#	SVars = LScope["Vars",table]
-						#	Code = LScope["Code",table]
-						#}
 					}elseif(I == -1){ #[ Callee ]#
 						local LScopes = LScope["Scopes",table]
 						local LScopesCount = LScopes:ncount()
@@ -389,7 +343,7 @@ if(first()){
 						if(CalleeType == "function"){
 							LScopes[LScopesCount,table] = Callee
 						}elseif(CalleeType == "table"){
-							error("Not implement (check __call metamethod)") #TODO
+							error("Not implement (check __call metamethod)") #TODO: 
 						}else{
 							error("attempt to call a " + CalleeType + " value")
 						}
@@ -440,15 +394,8 @@ if(first()){
 									1 = Callee["NewCtx",table]
 								)
 							)
-							
-							#if(1){ #[ if change context change local variables ]#
-							#	ScopesCount = Scopes:ncount()
-							#	LScope = Scopes[ScopesCount,table]
-							#	SVars = LScope["Vars",table]
-							#	Code = LScope["Code",table]
-							#}
 						}elseif(CalleeType == "table"){
-							error("Not implement (check __call metamethod)") #TODO
+							error("Not implement (check __call metamethod)") #TODO: 
 						}else{
 							print(format("%p", LScopes))
 							error("attempt to call a " + CalleeType + " value")
@@ -475,13 +422,6 @@ if(first()){
 					}
 					
 					Scopes:cluaSCOPEpushReturn(Variable)
-					
-					#if(1){ #[ if change context change local variables ]#
-					#	ScopesCount = Scopes:ncount()
-					#	LScope = Scopes[ScopesCount,table]
-					#	SVars = LScope["Vars",table]
-					#	Code = LScope["Code",table]
-					#}
 					break
 					
 				case "identifier",
@@ -510,25 +450,11 @@ if(first()){
 							}
 							
 							Scopes:cluaSCOPEpushReturn(Variable)
-							
-							#if(1){ #[ if change context change local variables ]#
-							#	ScopesCount = Scopes:ncount()
-							#	LScope = Scopes[ScopesCount,table]
-							#	SVars = LScope["Vars",table]
-							#	Code = LScope["Code",table]
-							#}
 						}
 					}else{
 						Scopes:cluaSCOPEpushReturn(
 							Instance:cluaNewVar("nil")
 						)
-						
-						#if(1){ #[ if change context change local variables ]#
-						#	ScopesCount = Scopes:ncount()
-						#	LScope = Scopes[ScopesCount,table]
-						#	SVars = LScope["Vars",table]
-						#	Code = LScope["Code",table]
-						#}
 					}
 					break
 					
@@ -546,16 +472,6 @@ if(first()){
 				if(This["IsComplete",number]){
 					return 1
 				}
-				
-				#if(1){ #[ if change context change local variables ]#
-				#	ContextsCount = Contexts:ncount()
-				#	Context = Contexts[ContextsCount,table]
-				#	Scopes = Context["Scopes",table]
-				#	ScopesCount = Scopes:ncount()
-				#	LScope = Scopes[ScopesCount,table]
-				#	SVars = LScope["Vars",table]
-				#	Code = LScope["Code",table]
-				#}
 			}
 			
 			LScope["Instruction",number] = I + 1

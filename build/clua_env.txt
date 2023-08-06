@@ -1,56 +1,46 @@
 @name CLua_env
 
-if(first()){
-	function table table:clua_print(Args:table){
-		#[@DEBUG]#
-		if(This["_class",string] != "clua_instance"){
-			error("clua_* not run e2func ThisClass not clua_instance: " + This["_class",string])
-		}
-		
-		local Print = ""
-		
-		foreach(K:number, Variable:table = Args){
-			local Type = Variable["Type",string]
-			
-			switch(Type){
-				case "userdata",
-					Print = Print + format("userdata %p", Variable["Value",table]) + "\t"
-					break
-					
-				case "function",
-					Print = Print + format("function %p", Variable["Value",table]) + "\t"
-					break
-					
-				case "boolean",
-					Print = Print + (Variable["Value",number] ? "true" : "false") + "\t"
-					break
-					
-				case "string",
-					Print = Print + Variable["Value",string] + "\t"
-					break
-					
-				case "number",
-					Print = Print + Variable["Value",number] + "\t"
-					break
-					
-				case "thread",
-					Print = Print + format("thread %p", Variable["Value",table]) + "\t"
-					break
-					
-				case "table",
-					Print = Print + format("table %p", Variable["Value",table]) + "\t"
-					break
-					
-				case "nil",
-					Print = Print + "nil" + "\t"
-					break
-				
-				default, error("clua_print var type not found: " + Type)
-			}
-		}
-		
-		print(Print)
-		
-		return table()
-	}
-}
+ALWAYS_TRUE = 1
+    if(first()){
+        function table table:clua_print(Args:table){
+            if(This["_class",string] != "clua_instance"){
+                error("clua_* not run e2func ThisClass not clua_instance: " + This["_class",string])
+            }
+            local Print = ""
+            
+            foreach(K:number, Variable:table = Args){
+                local Type = Variable["Type",string]
+                
+                switch(Type){
+                    case "userdata",
+                        Print = Print + format("userdata %p", Variable["Value",table]) + "\t"
+                        break
+                    case "function",
+                        Print = Print + format("function %p", Variable["Value",table]) + "\t"
+                        break
+                    case "boolean",
+                        Print = Print + (Variable["Value",number] ? "true" : "false") + "\t"
+                        break
+                    case "string",
+                        Print = Print + Variable["Value",string] + "\t"
+                        break
+                    case "number",
+                        Print = Print + Variable["Value",number] + "\t"
+                        break
+                    case "thread",
+                        Print = Print + format("thread %p", Variable["Value",table]) + "\t"
+                        break
+                    case "table",
+                        Print = Print + format("table %p", Variable["Value",table]) + "\t"
+                        break
+                    case "nil",
+                        Print = Print + "nil" + "\t"
+                        break
+                    default,
+                        error("clua_print var type not found: " + Type)
+                }
+            }
+            print(Print)
+            return table()
+        }
+    }

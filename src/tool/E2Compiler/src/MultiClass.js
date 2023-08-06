@@ -185,7 +185,7 @@ function multiple(...classes) {
             if (!ctor) throw new Error('Unknown constructor specified to this.callSuperConstructor()')
             
             let obj = new ctor(...args)
-            Object.assign(this, obj) // TODO: copy descriptors, as the constructor might possibly make those.
+            Object.assign(this, obj) // TODO : copy descriptors, as the constructor might possibly make those.
         }
     })
 

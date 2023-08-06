@@ -2,7 +2,6 @@
 @persist [Instace Ctx]:table
 
 #include "lua/clua"
-#include "lua/clua_env"
 
 if(first()){
     local Code = table("_Type" = "block", 1 = table("_Type" = "call", 1 = table("_Type" = "identifier", 1 = "print"), 2 = table(1 = table("_Type" = "literal", 1 = "string", 2 = "hello world!")))) 

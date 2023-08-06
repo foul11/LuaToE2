@@ -7,12 +7,23 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "CluaBuild",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}\\index.js",
+            "args": ["build", "-wdp", "--incdir", "../../", "clua.txt", "stdout"],
+            "outputCapture": "std",
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "Build",
             "skipFiles": [
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["build", "../input.txt", "out.txt"],
+            "args": ["build", "--incdir", "e2s", "../input.txt", "out"],
             "outputCapture": "std",
         },
         {
@@ -23,7 +34,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["printTree", "input.txt"], //"input.txt"
+            "args": ["tree", "--incdir", "e2s", "../input.txt"], //"../input.txt"
             "outputCapture": "std",
         },
         {
@@ -46,7 +57,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["build", "../input.txt", "out.txt", "--grammar"],
+            "args": ["build", "--incdir", "e2s", "../input.txt", "out.txt", "--grammar"],
             "outputCapture": "std",
         },
         {
@@ -57,9 +68,9 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["test", "e2s", "--fat", "data/izba*", "--target", "input.txt"],
+            "args": ["test", "--incdir", "e2s", "e2s", "--fat", "data/izba*", "--target", "../input.txt"],
             // , "--target", "e2s\railbuilder_v2.txt"
-            // , "--target", "input.txt"
+            // , "--target", "../input.txt"
             "outputCapture": "std",
             // "preLaunchTask": "buildGrammar"
         },
@@ -71,9 +82,9 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["test", "e2s", "--fat", "data/[izba,meta]*"],
+            "args": ["test", "--incdir", "e2s", "e2s", "--fat", "data/[izba,meta]*"],
             // , "--target", "e2s\railbuilder_v2.txt"
-            // , "--target", "input.txt"
+            // , "--target", "../input.txt"
             "outputCapture": "std",
             // "preLaunchTask": "buildGrammar"
         },

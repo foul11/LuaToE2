@@ -1,6 +1,16 @@
 import path from 'path';
 import fs from 'fs';
 
+/** @param {import('stream').Readable} input */
+export async function readAll(input) {
+    let chunks = [];
+    
+    for await (let chunk of input)
+        chunks.push(chunk);
+        
+    return chunks.join();
+}
+
 export function* traverseDir(dirPath) {
 	if(!fs.lstatSync(dirPath).isDirectory()){
 		yield dirPath
