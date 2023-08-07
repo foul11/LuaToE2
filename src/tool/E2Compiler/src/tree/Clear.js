@@ -4,6 +4,7 @@ import util from 'node:util';
 import path from 'node:path';
 import { Stream } from 'node:stream';
 import { readAll } from '../Helpers.js';
+import { randomUUID } from 'node:crypto';
 
 function capitalize(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
@@ -514,6 +515,7 @@ export class Literal extends Expression {
     /**
      * @param {ExpressionOptions & {
      *  value?: string | number | boolean,
+     *  isstring?: boolean,
      * }} options
      **/
     
@@ -522,6 +524,8 @@ export class Literal extends Expression {
         
         /** @type {string | number | boolean} */
         this.value = options.value ?? ThrowNotEnoughArgsOfToken();
+        /** @type {boolean} */
+        this.isstring = options.isstring ?? false;
     }
 }
 
@@ -984,12 +988,14 @@ export class Scope {
         this.isPreProcess = 0;
         
         this.flag_isMethod = 0;
+        /** @deprecated */
         this.flag_expsMethodNoPush = 0;
+        this.flag_laststmt = 0; // for define checker
         this.exps_stack = [[]];
         this.pexps_stack = 0;
         
         this.unicVar = 0;
-        this.funcDeclareDisableVars = [];
+        this.funcDeclareDisableVars = []; // for inline
         
         this.directives = [];
         this.assigment = [];
@@ -1009,6 +1015,7 @@ export class Scope {
         this.includepref = '';
         
         this.customFunc = {};
+        this.defines = {};
         
         this.forceinline = false;
         
@@ -1018,6 +1025,12 @@ export class Scope {
         /* CONF */
         this.disabledCheckType = false;
         this.oneByOneInclude = false;
+        this.e2directives = [
+            'name', 'model',
+            'inputs', 'outputs',
+            'persist', 'trigger',
+            'autoupdate', 'strict',
+        ];
         /* CONF */
         
         /** @type {E2Data} */
@@ -1088,12 +1101,12 @@ export class Scope {
         this.assigment.pop();
     }
     
-    /** @param {Block} blk */
+    /** @param {Block} blk @deprecated */
     includePush(blk) {
         this.includes.push(blk);
     }
     
-    /** @return {Root} */
+    /** @return {Root} @deprecated */
     includePop() {
         return this.includes.pop();
     }
@@ -1440,28 +1453,29 @@ export class Scope {
      */
     
     async IncludePreCache(input, raw = false) {
+        let lowerpath;
         let fpath;
+        let code;
         
         if (raw) {
-            fpath = 'stdin';
+            lowerpath = `stdin_{${randomUUID()}}`;
+            code = input;
         } else {
+            lowerpath = input.toLowerCase();
             fpath = input;
-            input = input.toLowerCase();
         }
         
         if (!this.parser) throw Error('ParserNotFound');
         
-        if (this.includeCycle[input]) {
+        if (this.includeCycle[lowerpath]) {
             throw Error('CycleInclude');
         }
         
-        if (this.includePreCache[input]) {
-            return this.includePreCache[input];
+        if (this.includePreCache[lowerpath]) {
+            return this.includePreCache[lowerpath];
         }
         
-        // // console.log('include: ', origPath);
-        
-        this.includePreCache[input] = (async () => {
+        this.includePreCache[lowerpath] = await (async () => {
             let release;
             
             if (this.oneByOneInclude) {
@@ -1469,7 +1483,7 @@ export class Scope {
             }
             
             try {
-                return preProccess(await (raw ? this.parser.parseCode(input) : this.parser.parseFile(fpath)), this);
+                return preProccess(await (raw ? this.parser.parseCode(code) : this.parser.parseFile(fpath)), this);
             } catch(e) {
                 if (e.code == 'ENOENT') {
                     throw new NoSuchFile(fpath);
@@ -1480,57 +1494,65 @@ export class Scope {
             }
         })();
         
-        return this.includePreCache[input];
+        return lowerpath;
     }
     
     /**
-     * @param {string} fpath 
+     * @param {string} fpath
+     * @return {Root}
      */
     
-    async IncludeToBlock(fpath) {
+    IncludeToBlock(fpath) {
         fpath = fpath.toLowerCase();
         
         if (!this.parser) throw Error('ParserNotFound');
         
-        if (this.includeCycle[fpath]) {
-            throw Error('CycleInclude');
-        }
+        if (!this.includePreCache[fpath])
+            throw new Error(`${fpath} not preCached, parsing unavailable`);
+        
+        if (this.includeCycle[fpath])
+            throw new Error('CycleInclude');
+        
+        this.includeCycle[fpath] = true;
         
         if (this.includeCache[fpath]) {
+            this.includeCycle[fpath] = false;
             return this.includeCache[fpath];
         }
         
-        // // console.log('process: ', fpath);
+        let saveAnnos = this.annotationsPop();
+            this.includeCache[fpath] = (() => {
+                for (let node of travel([this.includePreCache[fpath]], this)) {
+                    if (node instanceof Promise) {
+                        throw new Error('so far this shouldn\'t be happening.');
+                    }
+                    
+                    if (node instanceof Root) {
+                        return node;
+                    }
+                }
+            })();
+        this.annotationsPushAll(saveAnnos);
         
-        this.includeCache[fpath] = (async () => {
-            for (let node of travel([await this.includePreCache[fpath]], this)) {
+        this.includeCycle[fpath] = false;
+        return this.includeCache[fpath];
+    }
+    
+    /** @return {Root} */
+    BlockFromRaw(code) {
+        if (!this.parser) throw Error('ParserNotFound');
+        
+        let saveAnnos = this.annotationsPop();
+            for (let node of travel([preProccessSync(this.parser.parseLiteCode(code), this)], this)) {
                 if (node instanceof Promise) {
-                    this.includeCycle[fpath] = true;
-                    this.includePush(await node);
-                    this.includeCycle[fpath] = false;
+                    throw new UnexpectedToken(node);
                 }
                 
                 if (node instanceof Root) {
                     return node;
                 }
             }
-        })();
-        
-        return this.includeCache[fpath];
-    }
-    
-    async BlockFromRaw(code) {
-        if (!this.parser) throw Error('ParserNotFound');
-        
-        for (let node of travel([await preProccess(await this.parser.parseCode(code), this)], this)) {
-            if (node instanceof Promise) {
-                this.includePush(await node);
-            }
-            
-            if (node instanceof Root) {
-                return node.block;
-            }
-        }
+        this.annotationsPushAll(saveAnnos);
     }
     
     // eslint-disable-next-line no-unused-vars
@@ -1563,7 +1585,7 @@ export class Scope {
             this.annoRegex =  VerboseRegExp`
                 (?:
                     (?:#.+(?:\n|$))
-                    | (?<full>
+                    | (?<full>(^|\s)+
                         @(?:
                               (?<name_1 > inline      )
                             | (?<name_12> noinline    )
@@ -1574,18 +1596,20 @@ export class Scope {
                             | (?<name_16> printops    )
                             | (?<name_17> disablect   )                             // check types
                             | (?<name_18> enablect    )                             // check types
-                            | (?<name_3 > include     ) \s* "(?<path_1 >[^"]+?)"
-                            | (?<name_20> includepref ) \s+  (?<pref_1> \S+)
-                            | (?<name_4 > type        ) \s+  (?<type_1> \S+)
-                            | (?<name_13> typedef     ) \s+  (?<type_3> \S+)     \s+ (?<tdef_1> \S+)
-                            | (?<name_5 > return      ) \s+  (?<type_2> \S+)
-                            | (?<name_14> this        ) \s+  (?<type_4> \S+)
-                            | (?<name_6 > define      ) \s+  (?<arg1_1> \S+)     \s+ (?<arg2_1>  .+)
-                            | (?<name_7 > ifdef       ) \s+  (?<arg1_2>  .+)
-                            | (?<name_8 > ifndef      ) \s+  (?<arg1_3>  .+)
-                            | (?<name_9 > compiler    ) \s+  (?<arg1_4> \S+)     \s+ (?<arg2_2>  .+)
-                            | (?<name_10> error       ) \s+  (?<msg _1>  .+)
-                            | (?<name_11> warn        ) \s+  (?<msg _2>  .+)
+                            | (?<name_22> enum        ) \s+  (?<ename_1> \S+)     \s+ {(?<eval_1> [^}]+?)}
+                            | (?<name_3 > include     ) \s* "(?<path _1> [^"]+?)"
+                            | (?<name_20> includepref ) \s+  (?<pref _1> \S+)
+                            | (?<name_4 > type        ) \s+  (?<type _1> \S+)
+                            | (?<name_13> typedef     ) \s+  (?<type _3> \S+)     \s+ (?<tdef_1> \S+)
+                            | (?<name_5 > return      ) \s+  (?<type _2> \S+)
+                            | (?<name_14> this        ) \s+  (?<type _4> \S+)
+                            | (?<name_6 > define      ) \s+  (?<arg1 _1> \S+)     \s+ (?<arg2_1>  .+)
+                            | (?<name_23> undefine    ) \s+  (?<arg1 _5> \S+)
+                            | (?<name_7 > ifdef       ) \s+  (?<arg1 _2>  .+)
+                            | (?<name_8 > ifndef      ) \s+  (?<arg1 _3>  .+)
+                            | (?<name_9 > compiler    ) \s+  (?<arg1 _4> \S+)     \s+ (?<arg2_2>  .+)
+                            | (?<name_10> error       ) \s+  (?<msg  _1>  .+)
+                            | (?<name_11> warn        ) \s+  (?<msg  _2>  .+)
                             | (?<wname_1> \S*         )
                         )
                     )
@@ -1613,7 +1637,9 @@ export class Scope {
                 continue;
             
             if (cap.wname) {
-                console.warn(`undefined Annotation: ${cap.full}`);
+                if (!this.e2directives.includes(cap.wname))
+                    console.warn(`undefined Annotation: ${cap.full}`);
+                
                 continue;
             }
             
@@ -1622,7 +1648,6 @@ export class Scope {
             
             let anno = null;
             let name = cap.name.toLowerCase();
-            let saveAnnos;
             
             switch (name) {
                 case 'inline':
@@ -1660,20 +1685,38 @@ export class Scope {
                     if (!this.disablect)
                         anno = new Annotation({ name: name, value: { type: cap.type } });
                     break;
-                
+                    
+                case 'enum':
+                    let enumName = cap.ename;
+                    let evals = {};
+                    let counter = 1;
+                    
+                    for (let arg of cap.eval.matchAll(/\s*([^,=\s]+)\s*(?:=([^,]+))?(?:,)?(?:#.+?\n)?/gm)) {
+                        let ename = arg[1];
+                        let ival = arg[2] ?? (counter++).toString();
+                        let fullEName = `${enumName}${ename}`;
+                        
+                        this.defines[fullEName] = ival;
+                        
+                        evals[ename] = ival;
+                    }
+                    
+                    anno = new Annotation({ name: name, value: { name: cap.ename, evals: evals } });
+                    break;
+                    
+                case 'undefine':
+                    this.defines[cap.arg1] = null;
+                    anno = new Annotation({ name: name, value: { name: cap.arg1 } });
+                    break;
+                    
                 case 'define':
-                    saveAnnos = this.annotationsPop();
-                    yield this.BlockFromRaw(cap.arg2);
-                    this.annotationsPushAll(saveAnnos);
-                    anno = new Annotation({ name: name, value: { name: cap.arg1, arg: cap.arg2, code: this.includePop().block } });
+                    this.defines[cap.arg1] = cap.arg2;
+                    anno = new Annotation({ name: name, value: { name: cap.arg1, code: cap.arg2 } });
                     break;
                 
                 case 'ifdef':
                 case 'ifndef':
-                    saveAnnos = this.annotationsPop();
-                    yield this.BlockFromRaw(cap.arg1);
-                    this.annotationsPushAll(saveAnnos);
-                    anno = new Annotation({ name: name, value: { arg: cap.arg1, code: this.includePop().block } });
+                    anno = new Annotation({ name: name, value: { result: !!this.defines[cap.arg1] } });
                     break;
                 
                 case 'compiler':
@@ -2170,7 +2213,7 @@ function *travel(node, scope, depth = 0) {
                 
                 let neededReturnType = scope.returnTypeGet();
                 
-                if (neededReturnType != t_return.return) {
+                if (t_return && neededReturnType != t_return.return) {
                     throw new DifferentReturnType(`${neededReturnType.type} type is different from ${t_return.return.type}`);
                 }
                 
@@ -2180,6 +2223,7 @@ function *travel(node, scope, depth = 0) {
                         value: t_return,
                     });
                 } else {
+                    // TODO: this is needed for inline and may result in an error when returning void, t_return == null
                     yield new Assignment({
                         annotations: scope.annotationsPop(),
                         value: t_return,
@@ -2870,18 +2914,19 @@ function *travel(node, scope, depth = 0) {
                 //     }
                 // }
                 
+                scope.flag_laststmt = depth;
                 scope.prestmt.push(stmts);
                 
                 function *include(node) {
                     let annos = scope.annotationsPop();
-                    yield scope.IncludeToBlock(node.path); // await Promise, throw level [after root], in Scope.includePop - tree include [root -> block]
+                    // yield scope.IncludeToBlock(node.path); // await Promise, throw level [after root], in Scope.includePop - tree include [root -> block]
                     
                     stmts.push(
                         new Include({
                             pref: scope.includepref,
                             annotations: annos,
                             path: node.import,
-                            body: scope.includePop(),
+                            body: scope.IncludeToBlock(node.path), // now it's a synchronous operation //scope.includePop(),
                             ...scope.getOP('include', []),
                         }),
                     );
@@ -3221,11 +3266,17 @@ function *travel(node, scope, depth = 0) {
                     scope.EnteredNode(node);
                     switch(true) {
                         case node instanceof LexemText:
-                            exps.push(scope.setVar(new Var({
-                                annotations: expr_anno,
-                                name: node.text,
-                                ...scope.getVarParm(node.text),
-                            })));
+                            let ret;
+                            let gen = includeDefine(node);
+                            while(!(ret = gen.next()).done) yield ret.value;
+                            
+                            if (!ret.value) {
+                                exps.push(scope.setVar(new Var({
+                                    annotations: expr_anno,
+                                    name: node.text,
+                                    ...scope.getVarParm(node.text),
+                                })));
+                            }
                             break;
                         
                         case node instanceof LexemAss: throw new UnexpectedToken(node);
@@ -3260,6 +3311,10 @@ function *travel(node, scope, depth = 0) {
                 }
                 if (isVarGet) scope.assDisablePop();
                 scope.expsPop();
+                
+                if (!exps.length) { // in case the definum variable was replaced
+                    break;
+                }
                 
                 function is_len(len) {
                     return exps.length == len;
@@ -3368,6 +3423,35 @@ function *travel(node, scope, depth = 0) {
                     return retVar;
                 }
                 
+                function* includeDefine(node) {
+                    let define = null;
+                    
+                    if (node instanceof LexemConstant) {
+                        define = scope.defines[node.value];
+                    } else if (node instanceof LexemText) {
+                        define = scope.defines[node.text];
+                    } else return false;
+                    
+                    if (define) {
+                        let stmts = scope.BlockFromRaw(define).block.statements;
+                        
+                        if (scope.flag_laststmt == depth - 1) {
+                            for (let stmt of stmts)
+                                yield stmt;
+                        } else {
+                            if (stmts.length != 1) {
+                                throw new Error(`Only one expression is allowed inside an expression: ${define}`);
+                            } else if (!(stmts[0] instanceof Expression)) {
+                                throw new Error(`Statements are not allowed inside expressions: ${define}`);
+                            } else {
+                                yield stmts[0];
+                            }
+                        }
+                    } else return false;
+                    
+                    return true;
+                }
+                
                 switch(true) {
                     case is_len(1) && is_inst([Var]):
                     case is_len(1) && is_inst([Call]):
@@ -3397,12 +3481,19 @@ function *travel(node, scope, depth = 0) {
                     case is_len(1) && is_inst([LexemConst]):
                         let literal_node = exps[0];
                         
-                        yield new Literal({
-                            annotations: expr_anno,
-                            value: literal_node.value,
-                            return: (literal_node instanceof LexemNumber || literal_node instanceof LexemConstant) ? scope.number :
-                                        (literal_node instanceof LexemString ? scope.string : scope.default),
-                        });
+                        let ret;
+                        let gen = includeDefine(literal_node);
+                        while(!(ret = gen.next()).done) yield ret.value;
+                        
+                        if (!ret.value) {
+                            yield new Literal({
+                                annotations: expr_anno,
+                                value: literal_node.value,
+                                return: (literal_node instanceof LexemNumber || literal_node instanceof LexemConstant) ? scope.number :
+                                            (literal_node instanceof LexemString ? scope.string : scope.default),
+                                isstring: literal_node instanceof LexemString,
+                            });
+                        }
                         break;
                     
                     case is_len(2) && is_inst([LexemOpLogic, Expression]) && is_lex(0, '!'):
@@ -3463,7 +3554,6 @@ function *travel(node, scope, depth = 0) {
                         yield exps[0];
                         break;
                         
-                    // case is_len(0): break; // наверное их быть не должно, посмотрим
                     case is_len(5) && is_inst([Expression, LexemQuest, Expression, LexemColon, Expression]):
                         yield new Ternary({
                             condition: scope.applyOP(scope.applyOP(exps[0], 'is'), 'cnd'),
@@ -3596,98 +3686,110 @@ function *travel(node, scope, depth = 0) {
     }
 }
 
+function _preProccess(node, scope, promises) {
+    if (node.type && node.text)
+        return node;
+    
+    let [ type ] = Object.keys(node);
+    let currchlds = node[type];
+    
+    if (type == 'dmtr') {
+        for (let i = 0; i < currchlds.length; i++) {
+            let node = currchlds[i];
+            
+            if (!node.type || !node.text)
+                continue;
+            
+            let content = node.text;
+            if (content.substring(0,8) == '#include') {
+                let ppinc = new PPinclude({ value: content });
+                
+                promises.push(scope.IncludePreCache(ppinc.path));
+            }
+        }
+    }
+    
+    if (type == 'directive') {
+    //     let dmtrs = [];
+        
+        for (let dnode of travel([node], scope)){
+            if (dnode instanceof Delimiter) {
+                // dmtrs.push(dnode.origin);
+                continue;
+            }
+            
+            if (dnode instanceof Directive) {
+                // scope.pushDirective(dnode);
+                continue;
+            }
+            
+            throw new UnexpectedToken(dnode);
+        }
+        
+    //     if (!dmtrs.length) {
+    //         return;
+    //     }
+        
+    //     return {
+    //         '#dmtr': dmtrs,
+    //     }
+    }
+    
+    if (/expr\d{1,2}/.test(type) && currchlds.length == 1) {
+        let [ ntype ] = Object.keys(currchlds[0]);
+        
+        if (/expr\d{1,2}/.test(ntype)) {
+            return _preProccess(currchlds[0], scope, promises);
+        }
+    }
+    
+    for (let i = 0; i < currchlds.length; i++) {
+        let child = currchlds[i];
+        let repeat = false;
+        
+        do {
+            let ret = _preProccess(child, scope, promises);
+            repeat = false;
+            
+            if (ret) {
+                [ type ] = Object.keys(ret);
+                
+                if (type[0] == '#') {
+                    repeat = true;
+                    ret[type.slice(1)] = ret[type];
+                    delete ret[type];
+                    child = ret;
+                    
+                    continue;
+                }
+                
+                currchlds[i] = ret;
+            } else {
+                currchlds.splice(i--, 1);
+            }
+        } while(repeat)
+    }
+    
+    return node;
+}
+
+function preProccessSync(node, scope) {
+    let promises = [];
+    
+    scope.preProcessorPush();
+        let ret = _preProccess(node, scope, promises);
+        if (promises.length)
+            throw new Error('Asynchronous operations are prohibited here');
+    scope.preProcessorPop();
+    
+    return ret;
+}
+
 async function preProccess(node, scope) {
     let promises = [];
     
-    function _preProccess(node, scope) {
-        if (node.type && node.text)
-            return node;
-        
-        let [ type ] = Object.keys(node);
-        let currchlds = node[type];
-        
-        if (type == 'dmtr') {
-            for (let i = 0; i < currchlds.length; i++) {
-                let node = currchlds[i];
-                
-                if (!node.type || !node.text)
-                    continue;
-                
-                let content = node.text;
-                if (content.substring(0,8) == '#include') {
-                    let ppinc = new PPinclude({ value: content });
-                    
-                    promises.push(scope.IncludePreCache(ppinc.path));
-                }
-            }
-        }
-        
-        // if (type == 'directive') {
-        //     let dmtrs = [];
-            
-        //     for (let dnode of travel([node], scope)){
-        //         if (dnode instanceof Delimiter) {
-        //             dmtrs.push(dnode.origin);
-        //             continue;
-        //         }
-                
-        //         if (dnode instanceof Directive) {
-        //             scope.pushDirective(dnode);
-        //             continue;
-        //         }
-                
-        //         throw new UnexpectedToken(dnode);
-        //     }
-            
-        //     if (!dmtrs.length) {
-        //         return;
-        //     }
-            
-        //     return {
-        //         '#dmtr': dmtrs,
-        //     }
-        // }
-        
-        if (/expr\d{1,2}/.test(type) && currchlds.length == 1) {
-            let [ ntype ] = Object.keys(currchlds[0]);
-            
-            if (/expr\d{1,2}/.test(ntype)) {
-                return _preProccess(currchlds[0], scope);
-            }
-        }
-        
-        for (let i = 0; i < currchlds.length; i++) {
-            let child = currchlds[i];
-            let repeat = false;
-            
-            do {
-                let ret = _preProccess(child, scope);
-                repeat = false;
-                
-                if (ret) {
-                    [ type ] = Object.keys(ret);
-                    
-                    if (type[0] == '#') {
-                        repeat = true;
-                        ret[type.slice(1)] = ret[type];
-                        delete ret[type];
-                        child = ret;
-                        
-                        continue;
-                    }
-                    
-                    currchlds[i] = ret;
-                } else {
-                    currchlds.splice(i--, 1);
-                }
-            } while(repeat)
-        }
-        
-        return node;
-    }
-    
     scope.preProcessorPush();
-        let ret = _preProccess(node, scope);
+        let ret = _preProccess(node, scope, promises);
         await Promise.all(promises);
     scope.preProcessorPop();
     
@@ -3713,6 +3815,15 @@ async function preProccess(node, scope) {
     @printops
 */
 
+// TODO: define functions and line wrapping ignore
+// TODO: pre defined directive:
+/*
+    __TIME__
+    __LINE__
+    __FILE__
+    __FUNC__
+*/
+
 /**
  * @param {string | NodeJS.ReadStream} input
  * @param {E2Data} e2data
@@ -3728,11 +3839,11 @@ export default async function(input, e2data, parser) {
         raw = true;
     }
     
-    await scope.IncludePreCache(input, raw);
+    let include_name = await scope.IncludePreCache(input, raw);
     
     return new Include({
         pref: scope.includepref,
-        path: path.parse(input).name,
-        body: await scope.IncludeToBlock(input),
+        path: raw ? include_name : path.parse(input).name,
+        body: scope.IncludeToBlock(include_name),
     });
 };

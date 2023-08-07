@@ -23,7 +23,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["build", "--incdir", "e2s", "../input.txt", "out"],
+            "args": ["build", "-wp", "--incdir", "e2s", "../input.txt", "stdout"],
             "outputCapture": "std",
         },
         {
@@ -34,7 +34,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["tree", "--incdir", "e2s", "../input.txt"], //"../input.txt"
+            "args": ["tree", "-wp", "--incdir", "e2s", "../input.txt"], //"../input.txt"
             "outputCapture": "std",
         },
         {
@@ -57,7 +57,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["build", "--incdir", "e2s", "../input.txt", "out.txt", "--grammar"],
+            "args": ["build", "-wp", "--incdir", "e2s", "../input.txt", "out.txt", "--grammar"],
             "outputCapture": "std",
         },
         {
@@ -68,7 +68,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["test", "--incdir", "e2s", "e2s", "--fat", "data/izba*", "--target", "../input.txt"],
+            "args": ["test", "-wp", "--incdir", "e2s", "e2s", "--fat", "data/izba*", "--target", "input.txt"],
             // , "--target", "e2s\railbuilder_v2.txt"
             // , "--target", "../input.txt"
             "outputCapture": "std",

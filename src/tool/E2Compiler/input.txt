@@ -1,16 +1,67 @@
+@name Button
+@outputs Out
+@persist Plys:array
+@model models/cheeze/buttons/button_reset.mdl
 
-
-#include "button"
-
-# @ typedef table mega
-# @ disablect
-# @ compiler chlen false
-if(1) {
+if(first()){
+    function void playSound(Path:string){
+        entity():soundPlay(randint(9999),1,Path)
+    }
     
-} elseif (2) {
+    function number entity:check(){
+        foreach(K,E:entity = Plys){
+            if(E == This){
+                playSound("buttons/button14.wav")
+                return 1
+            }
+        }
+        
+        playSound("buttons/blip1.wav")
+        return 0
+    }
     
-} elseif (3) {
+    runOnUse(1)
     
-} else {
-    
+    Plys = array(owner())
 }
+
+if(useClk()){
+#ifdef moneyTimeoutTitle()
+    local Temp = useClk()
+#else
+    local Temp = useEntClk():inUseBy()
+#endif
+    
+    if(Temp:check()){
+        Out = 1
+        
+        timer("stop",10)
+    }
+}
+
+if(clk("stop")){
+    Out = 0
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

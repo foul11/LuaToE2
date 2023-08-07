@@ -97,6 +97,7 @@ class Worker extends EventEmitter {
     
     async init() {
         this.inited = true;
+        return this;
     }
     
     /**
@@ -111,11 +112,31 @@ class Worker extends EventEmitter {
     }
     
     /**
+     * @param {string} filePath
+     * @return {any}
+     */
+    parseLiteFile(filePath) {
+        let file = path.join(this.workdir, filePath);
+        let data = fs.readFileSync(file);
+        
+        return this.parseLiteCode(data.toString());
+    }
+    
+    /**
      * @param {string} code
      * @return {Promise<any>}
      */
     // eslint-disable-next-line no-unused-vars
     async parseCode(code) {
+        throw new Error('Should not be called');
+    }
+    
+    /**
+     * @param {string} code
+     * @return {any}
+     */
+    // eslint-disable-next-line no-unused-vars
+    parseLiteCode(code) {
         throw new Error('Should not be called');
     }
 }
@@ -173,11 +194,17 @@ class WorkerJSInternal extends Worker {
         }
         
         this.inited = true;
+        
+        return this;
     }
     
     async parseCode(code) {
+        return this.parseLiteCode(code);
+    }
+    
+    parseLiteCode(code) {
         if (!this.inited)
-            await this.init();
+            throw new NeedBuild('WorkerJSInternal has not been init');
         
         let input = new InputStream(code);
         let lexer = new this.lexer(input);
@@ -186,7 +213,7 @@ class WorkerJSInternal extends Worker {
         
         let map = {};
         this._traverse(parser.root(), map);
-        this.emit('release', this);
+        
         return map;
     }
 }
@@ -246,6 +273,8 @@ class WorkerJava extends Worker {
         }
         
         this.inited = true;
+        
+        return this;
     }
     
     _toBytesInt32(num) {
@@ -282,6 +311,8 @@ export class Workers extends EventEmitter {
     /** @param {Worker[]} workers  */
     constructor(workers) {
         super();
+        
+        this.setMaxListeners(0); // for more queue
         
         this.autoSelectZeroPriority = true;
         this.workers = workers;
@@ -334,15 +365,15 @@ export class Workers extends EventEmitter {
     
     
     /** @param {string} filePath */
-    async parseLiteFile(filePath) {
+    parseLiteFile(filePath) {
         let worker = this._selectZeroPriorityWorker();
-        return worker.parseFile(filePath);
+        return worker.parseLiteFile(filePath);
     }
     
     /** @param {string} code */
-    async parseLiteCode(code) {
+    parseLiteCode(code) {
         let worker = this._selectZeroPriorityWorker();
-        return worker.parseCode(code);
+        return worker.parseLiteCode(code);
     }
     
     /** @param {string} filePath */
@@ -368,31 +399,31 @@ export default function (grammarsdir, workdir, java) {
      */
     
     /** @param {createOptions} options */
-    function create(options) {
+    async function create(options) {
         options = Object.assign({
             countJava: 4,
             priorityJava: 50,
             liteonly: false,
         }, options);
-
+        
         /** @type {WorkerOptions} */
         let defConfig = { grammarsdir, workdir, priority: 0 };
         /** @type {Worker[]} */
         let workers = [
-            new WorkerJSInternal(defConfig),
+            await (new WorkerJSInternal(defConfig)).init(),
         ];
-
+        
         if (options.liteonly) {
             return new Workers(workers);
         }
-
+        
         for (let i = 0; i < options.countJava; i++) {
             workers.push(new WorkerJava({ ...defConfig, javadir: java, priority: options.priorityJava }));
         }
-
+        
         return new Workers(workers);
     }
-
+    
     async function build() {
         await new Promise((resolve, reject) => {
             const grammarJava = spawn(

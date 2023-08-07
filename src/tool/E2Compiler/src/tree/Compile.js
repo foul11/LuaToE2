@@ -275,8 +275,17 @@ class Scope {
                         }
                         break;
                     
+                    case 'enum':
+                    case 'define':
+                    case 'undefine':
+                        break;
+                        
                     case 'ifdef':
                     case 'ifndef':
+                        if (!anno.value.result) {
+                            this.optionsRevert.push(revert);
+                            return false;
+                        }
                         break;
                         
                     case 'warn':
@@ -1096,7 +1105,7 @@ function *it_Literal(node, scope) {
         if (scope.IsPreBlock())
             scope.pushBufferTab();
         
-        if (node.return == scope.string) {
+        if (node.isstring) {
             scope.pushBuffer('"');
             scope.pushBuffer(node.value.toString());
             scope.pushBuffer('"');

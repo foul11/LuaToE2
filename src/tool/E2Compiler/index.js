@@ -23,7 +23,7 @@ let parser = null;
 let fat = null;
 
 async function init(argv) {
-	if (argv._[0] == 'clua')
+	if (argv._[0] == 'clua' || argv._[0] == 'generate')
 		return;
 		
 	let threads = argv.threads;
@@ -43,7 +43,7 @@ async function init(argv) {
 		}
 	}
 	
-	parser = grammars.create({
+	parser = await grammars.create({
 		countJava: threads,
 		liteonly: !useJava
 	});
@@ -217,7 +217,7 @@ const yarg = yargs(hideBin(process.argv))
 		const input = /** @type {string} */ (argv.in);
 		
 		tree.simpleOutput(
-			await tree.clear(await parser.parseFile(input), fat, parser)
+			await tree.clear(input, fat, parser)
 		);
 	})
 	.command('test [subcommand]', 'test command', (yargs) => {
@@ -231,9 +231,9 @@ const yarg = yargs(hideBin(process.argv))
 		const input = /** @type {string} */ (argv.target);
 		
 		switch(argv.subcommand) {
-			case 'multicalss':  await import('./tests/MultiClass.js');                     			 break;
-			case 'e2s':        (await import('./tests/e2s.js')        ).default(input, parser, fat); break;
-			case 'loaddat':    (await import('./tests/loaddat.js')    ).default(argv.fat); 			 break;
+			case 'multicalss': await  await import('./tests/MultiClass.js'  );                     			 break;
+			case 'e2s':        await (await import('./tests/e2s.js')        ).default(input, parser, fat); break;
+			case 'loaddat':    await (await import('./tests/loaddat.js')    ).default(argv.fat); 			 break;
 		}
 	})
 	// .coerce(['java', 'fat', 'fatwarn', 'IncDir', 'UseJava', 'threads', 'grammar', 'build', 'generate', 'tree', 'test'], (arg) => {
