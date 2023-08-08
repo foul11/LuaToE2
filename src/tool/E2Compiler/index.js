@@ -23,13 +23,16 @@ let parser = null;
 let fat = null;
 
 async function init(argv) {
-	if (argv._[0] == 'clua' || argv._[0] == 'generate')
+	if (argv._[0] == 'clua')
 		return;
 		
 	let threads = argv.threads;
 	let useJava = argv.usejava;
 	
 	grammars = grammarsBuilder(grammarsdir, argv.incdir, argv.java);
+	
+	if (argv._[0] == 'generate')
+		return;
 	
 	if (argv.grammar) {
 		try {

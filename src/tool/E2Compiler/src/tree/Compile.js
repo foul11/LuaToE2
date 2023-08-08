@@ -1294,6 +1294,22 @@ function *Iterate(node, scope) {
 }
 
 /**
+ * @param {Token} token 
+ * @param {E2Data} e2data 
+ * @param {Options} options
+ * @return {string}
+ */
+export function partCompile(token, e2data, options){
+    let scope = new Scope(options, e2data);
+    
+    scope.pushBufferStack();
+        for (let val of Iterate(token, scope))
+            scope.pushBuffer(val);
+    
+    return scope.bufferToString();
+};
+
+/**
  * @param {Include} include 
  * @param {E2Data} e2data 
  * @param {Options} options

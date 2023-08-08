@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Stream } from 'node:stream';
 import { readAll } from '../Helpers.js';
 import { randomUUID } from 'node:crypto';
+import { partCompile } from './Compile.js';
 
 function capitalize(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
@@ -285,7 +286,21 @@ export class LexemArgs extends LexemValue {}
 export class LexemCondition extends LexemValue {}
 export class LexemFuncArgs extends LexemValue {}
 export class LexemFuncName extends LexemValue {}
-export class LexemConst extends LexemValue {}
+export class LexemConst extends LexemValue {
+    /**
+     * @param {{
+     *  line: number,
+     *  value?: any,
+     * }} value
+     */
+       
+    constructor(value) {
+        super(value);
+        
+        /** @type {number} */
+        this.line = value.line;
+    }
+}
 export class LexemCallStr extends LexemValue {}
 
 export class LexemConstant extends LexemConst {}
@@ -516,6 +531,7 @@ export class Literal extends Expression {
      * @param {ExpressionOptions & {
      *  value?: string | number | boolean,
      *  isstring?: boolean,
+     *  internal?: boolean,
      * }} options
      **/
     
@@ -526,6 +542,8 @@ export class Literal extends Expression {
         this.value = options.value ?? ThrowNotEnoughArgsOfToken();
         /** @type {boolean} */
         this.isstring = options.isstring ?? false;
+        /** @type {boolean} */
+        this.internal = options.internal ?? false;
     }
 }
 
@@ -1008,14 +1026,23 @@ export class Scope {
         this.returnType = [];
         this.disablect = false; // disable custom type check
         this.prestmt = [];
+        this.filename = [];
+        this.funcname = [];
         
         this.includeCache = {};
         this.includePreCache = {};
         this.includeCycle = {};
         this.includepref = '';
         
+        // let defineToCompiler = function*(node, scope){ yield new Literal({ value: node.value, return: scope.string, isstring: true, internal: true }); };
         this.customFunc = {};
         this.defines = {};
+        this.fdefine = { // regarding sources
+            '__FUNC__': function*(node, scope){ yield new Literal({ value: scope.funcname[scope.funcname.length - 1] ?? '[MAIN]', return: scope.string, isstring: true }); },
+            '__LINE__': function*(node, scope){ yield new Literal({ value: node.line, return: scope.number, isstring: false }); },
+            '__FILE__': function*(node, scope){ yield new Literal({ value: scope.filename[scope.filename.length - 1], return: scope.string, isstring: true }); },
+            '__TIME__': function*(node, scope){ yield new Literal({ value: (new Date()).toISOString(), return: scope.string, isstring: true }); },
+        };
         
         this.forceinline = false;
         
@@ -1522,6 +1549,7 @@ export class Scope {
         
         let saveAnnos = this.annotationsPop();
             this.includeCache[fpath] = (() => {
+                this.filename.push(fpath);
                 for (let node of travel([this.includePreCache[fpath]], this)) {
                     if (node instanceof Promise) {
                         throw new Error('so far this shouldn\'t be happening.');
@@ -1531,6 +1559,7 @@ export class Scope {
                         return node;
                     }
                 }
+                this.filename.pop();
             })();
         this.annotationsPushAll(saveAnnos);
         
@@ -1596,15 +1625,15 @@ export class Scope {
                             | (?<name_16> printops    )
                             | (?<name_17> disablect   )                             // check types
                             | (?<name_18> enablect    )                             // check types
-                            | (?<name_22> enum        ) \s+  (?<ename_1> \S+)     \s+ {(?<eval_1> [^}]+?)}
+                            | (?<name_22> enum        ) \s+  (?<ename_1> \w+)     \s+ {(?<eval_1> [^}]+?)}
                             | (?<name_3 > include     ) \s* "(?<path _1> [^"]+?)"
                             | (?<name_20> includepref ) \s+  (?<pref _1> \S+)
-                            | (?<name_4 > type        ) \s+  (?<type _1> \S+)
-                            | (?<name_13> typedef     ) \s+  (?<type _3> \S+)     \s+ (?<tdef_1> \S+)
-                            | (?<name_5 > return      ) \s+  (?<type _2> \S+)
-                            | (?<name_14> this        ) \s+  (?<type _4> \S+)
-                            | (?<name_6 > define      ) \s+  (?<arg1 _1> \S+)     \s+ (?<arg2_1>  .+)
-                            | (?<name_23> undefine    ) \s+  (?<arg1 _5> \S+)
+                            | (?<name_4 > type        ) \s+  (?<type _1> \w+)
+                            | (?<name_13> typedef     ) \s+  (?<type _3> \w+)     \s+ (?<tdef_1> \S+)
+                            | (?<name_5 > return      ) \s+  (?<type _2> \w+)
+                            | (?<name_14> this        ) \s+  (?<type _4> \w+)
+                            | (?<name_6 > define      ) \s+  (?<arg1 _1> \w+) (?:\((?<args_1>.+?)\))? \s+ (?<arg2_1>  (?:.+|(?<=\\)\s)+)
+                            | (?<name_23> undefine    ) \s+  (?<arg1 _5> \w+)
                             | (?<name_7 > ifdef       ) \s+  (?<arg1 _2>  .+)
                             | (?<name_8 > ifndef      ) \s+  (?<arg1 _3>  .+)
                             | (?<name_9 > compiler    ) \s+  (?<arg1 _4> \S+)     \s+ (?<arg2_2>  .+)
@@ -1710,8 +1739,14 @@ export class Scope {
                     break;
                     
                 case 'define':
-                    this.defines[cap.arg1] = cap.arg2;
-                    anno = new Annotation({ name: name, value: { name: cap.arg1, code: cap.arg2 } });
+                    let args = [];
+                    
+                    if (cap.args)
+                        for (let arg of cap.args.matchAll(/\s*(\w+),?/gm))
+                            args.push(arg[1]);
+                    
+                    this.defines[cap.arg1] = [ cap.arg2.replace(/\\(\s)/g, '$1'), args ];
+                    anno = new Annotation({ name: name, value: { name: cap.arg1, code: cap.arg2, args } });
                     break;
                 
                 case 'ifdef':
@@ -2013,6 +2048,8 @@ function *travel(node, scope, depth = 0) {
                         case node instanceof LexemKeyword:                          break;
                         case node instanceof LexemFuncName:
                             funcName = node.value;
+                            
+                            scope.funcname.push(funcName);
                             break;
                         case node instanceof LexemColon:    useThis = true;         break;
                         case node instanceof LexemFuncArgs:
@@ -2037,7 +2074,7 @@ function *travel(node, scope, depth = 0) {
                             if (_nThs && thisType)
                                 thisType = _nThs;
                             
-                            scope.declareCustomFunction(/** @type {Func} */ ({
+                            scope.declareCustomFunction(/** @type {Func} */ ({ // for recursion support
                                 name: funcName,
                                 parameters: args,
                                 returnType,
@@ -2057,6 +2094,7 @@ function *travel(node, scope, depth = 0) {
                     }
                     scope.LeaveNode(node);
                 }
+                scope.funcname.pop();
                 if (returnType)
                     scope.returnTypePop();
                 scope.pop();
@@ -2355,7 +2393,7 @@ function *travel(node, scope, depth = 0) {
                     callee,
                     arguments: t_call_args,
                     method: false,
-                    ...scope.getFunction(callee, t_call_args, scope.exps().length ? scope.exps()[scope.exps().length - 1].return : null),
+                    ...(scope.defines[callee] ? { return: scope.void } : (scope.getFunction(callee, t_call_args, scope.exps().length ? scope.exps()[scope.exps().length - 1].return : null))),
                 });
                 
                 if (scope.flag_isMethod == depth) {
@@ -2914,7 +2952,6 @@ function *travel(node, scope, depth = 0) {
                 //     }
                 // }
                 
-                scope.flag_laststmt = depth;
                 scope.prestmt.push(stmts);
                 
                 function *include(node) {
@@ -3097,6 +3134,8 @@ function *travel(node, scope, depth = 0) {
                 
             case 'pp':
             case 'stmt1':
+                scope.flag_laststmt = depth;
+                
                 for (let node of travel(childNodes, scope, depth)){
                     scope.EnteredNode(node);
                     yield node;
@@ -3109,7 +3148,7 @@ function *travel(node, scope, depth = 0) {
                     scope.EnteredNode(node);
                     switch(true) {
                         case node instanceof LexemText:
-                            yield new LexemString({ value: node.text.substring(1, node.text.length - 1) });
+                            yield new LexemString({ value: node.text.substring(1, node.text.length - 1), line: node.line });
                             break;
                         case node instanceof Promise:    yield node; break;
                         default: throw new UnexpectedToken(node);
@@ -3123,7 +3162,7 @@ function *travel(node, scope, depth = 0) {
                     scope.EnteredNode(node);
                     switch(true) {
                         case node instanceof LexemText:
-                            yield new LexemNumber({ value: node.text });
+                            yield new LexemNumber({ value: node.text, line: node.line });
                             break;
                         case node instanceof Promise:    yield node; break;
                         default: throw new UnexpectedToken(node);
@@ -3137,7 +3176,7 @@ function *travel(node, scope, depth = 0) {
                     scope.EnteredNode(node);
                     switch(true) {
                         case node instanceof LexemText:
-                            yield new LexemConstant({ value: node.text });
+                            yield new LexemConstant({ value: node.text, line: node.line });
                             break;
                         case node instanceof Promise:    yield node; break;
                         default: throw new UnexpectedToken(node);
@@ -3427,13 +3466,15 @@ function *travel(node, scope, depth = 0) {
                     let define = null;
                     
                     if (node instanceof LexemConstant) {
-                        define = scope.defines[node.value];
+                        define = scope.defines[node.value]?.[0];
                     } else if (node instanceof LexemText) {
-                        define = scope.defines[node.text];
+                        define = scope.defines[node.text]?.[0];
                     } else return false;
                     
                     if (define) {
+                        let last_stmt_flas = scope.flag_laststmt;
                         let stmts = scope.BlockFromRaw(define).block.statements;
+                        scope.flag_laststmt = last_stmt_flas;
                         
                         if (scope.flag_laststmt == depth - 1) {
                             for (let stmt of stmts)
@@ -3457,6 +3498,41 @@ function *travel(node, scope, depth = 0) {
                     case is_len(1) && is_inst([Call]):
                     // case is_len(1) && is_inst([StringCall]):
                     // case is_len(1) && is_inst([Assignment]):
+                    
+                    if (is_inst([Call]) && !exps[0].method && scope.defines[exps[0].callee]) {
+                        let dcall = scope.defines[exps[0].callee];
+                        let define = dcall[0];
+                        let ldef = {};
+                        
+                        for (let key of dcall[1]) {
+                            ldef[key] = scope.defines[key];
+                        }
+                        
+                        for (let i = 0; i < exps[0].arguments.length; i++) {
+                            scope.defines[dcall[1][i]] = [partCompile(exps[0].arguments[i], scope.e2data, { pretty: false }), []];
+                        }
+                        
+                        let last_stmt_flas = scope.flag_laststmt;
+                        let stmts = scope.BlockFromRaw(define).block.statements;
+                        scope.flag_laststmt = last_stmt_flas;
+                        
+                        if (scope.flag_laststmt == depth - 1) {
+                            for (let stmt of stmts)
+                                yield stmt;
+                        } else {
+                            if (stmts.length != 1) {
+                                throw new Error(`Only one expression is allowed inside an expression: ${define}`);
+                            } else if (!(stmts[0] instanceof Expression)) {
+                                throw new Error(`Statements are not allowed inside expressions: ${define}`);
+                            } else {
+                                yield stmts[0];
+                            }
+                        }
+                        
+                        for (let key of dcall[1]) {
+                            scope.defines[key] = ldef[key];
+                        }
+                    } else {
                         if (is_inst([Call])) {
                             let findInlineAnno = expr_anno.find((val) => val.name == 'inline');
                             let findNoInlineAnno = expr_anno.find((val) => val.name == 'noinline');
@@ -3468,8 +3544,9 @@ function *travel(node, scope, depth = 0) {
                         
                         exps[0].annotations = exps[0].annotations.concat(expr_anno);
                         exps[0].recalculateAnno();
-                        yield exps[0]; break;
-                        
+                        yield exps[0];
+                    }
+                    break;
                     // case is_len(2) && is_inst([Var, LexemOpIncDec]):
                     //     yield new Unary({
                     //         expression: exps[0],
@@ -3481,18 +3558,22 @@ function *travel(node, scope, depth = 0) {
                     case is_len(1) && is_inst([LexemConst]):
                         let literal_node = exps[0];
                         
-                        let ret;
-                        let gen = includeDefine(literal_node);
-                        while(!(ret = gen.next()).done) yield ret.value;
-                        
-                        if (!ret.value) {
-                            yield new Literal({
-                                annotations: expr_anno,
-                                value: literal_node.value,
-                                return: (literal_node instanceof LexemNumber || literal_node instanceof LexemConstant) ? scope.number :
-                                            (literal_node instanceof LexemString ? scope.string : scope.default),
-                                isstring: literal_node instanceof LexemString,
-                            });
+                        if (scope.fdefine[literal_node.value]) {
+                            yield* scope.fdefine[literal_node.value](literal_node, scope);
+                        } else {
+                            let ret;
+                            let gen = includeDefine(literal_node);
+                            while(!(ret = gen.next()).done) yield ret.value;
+                            
+                            if (!ret.value) {
+                                yield new Literal({
+                                    annotations: expr_anno,
+                                    value: literal_node.value,
+                                    return: (literal_node instanceof LexemNumber || literal_node instanceof LexemConstant) ? scope.number :
+                                                (literal_node instanceof LexemString ? scope.string : scope.default),
+                                    isstring: literal_node instanceof LexemString,
+                                });
+                            }
                         }
                         break;
                     
@@ -3813,11 +3894,7 @@ async function preProccess(node, scope) {
     @pretty
     @nopretty
     @printops
-*/
-
-// TODO: define functions and line wrapping ignore
-// TODO: pre defined directive:
-/*
+    
     __TIME__
     __LINE__
     __FILE__
