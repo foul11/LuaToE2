@@ -1118,6 +1118,9 @@ function *it_Literal(node, scope) {
 /** @param {Lookup} node @param {Scope} scope  */
 function *it_Lookup(node, scope) {
     scope.pushBufferStack();
+        if (scope.IsPreBlock())
+            scope.pushBufferTab();
+        
         for (let value of Iterate(node.object, scope))
             scope.pushBuffer(value);
         for (let value of Iterate(node.member, scope))
@@ -1170,6 +1173,10 @@ function *it_Binary(node, scope) {
             scope.pushBuffer('(');
         }
         
+        if (scope.IsPreUnary()) {
+            scope.pushBuffer('(');
+        }
+        
         if (scope.IsPreBlock())
             scope.pushBufferTab(sub);
         
@@ -1197,7 +1204,11 @@ function *it_Binary(node, scope) {
         
         if (needr)
             scope.pushBuffer(')');
-            
+        
+        if (scope.IsPreUnary()) {
+            scope.pushBuffer(')');
+        }
+        
         if (scope.opcounter && scope.op.expr && !scope.IsPreUnary())
             scope.pushBuffer(')');
     yield scope.bufferToString();

@@ -131,7 +131,7 @@ t_assign
       (expr | t_assign)
    ;
    
-t_fun_name : LITERAL ;
+t_fun_name : LITERAL | CONSTANT ;
    
 t_type
    : 
@@ -399,7 +399,7 @@ COMMENT_OR_INCLUDE
    ;
 
 BLOCK_COMMENT
-   : '#[' .*? (']#' | EOF)
+   : '#[' (BLOCK_COMMENT | .)*? (']#' | EOF)
    ;
 
 // COMMENT

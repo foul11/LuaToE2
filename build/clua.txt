@@ -323,6 +323,8 @@ if(first()){
                         Scopes:cluaSCOPEpushReturn(Instance:cluaNewVar("nil"))
                     }
                     break
+                case "binary",
+                    break
                 default,
                     error("cluaContextExecute undefined type: " + Type)
                     break

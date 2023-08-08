@@ -556,7 +556,7 @@ export class Lookup extends Expression {
      **/
     
     constructor(options = {}) {
-        options.return = options?.member?.type;
+        options.return = options?.member?.return;
         super(options);
         
         /** @type {Expression} */
@@ -575,7 +575,6 @@ export class Index extends Expression {
      **/
     
     constructor(options = {}) {
-        options.return = options.type;
         super(options);
         
         /** @type {Expression} */
@@ -1036,12 +1035,23 @@ export class Scope {
         
         // let defineToCompiler = function*(node, scope){ yield new Literal({ value: node.value, return: scope.string, isstring: true, internal: true }); };
         this.customFunc = {};
+        this.enumReverse = {};
+        this.isinsidedefine = 0;
         this.defines = {};
         this.fdefine = { // regarding sources
-            '__FUNC__': function*(node, scope){ yield new Literal({ value: scope.funcname[scope.funcname.length - 1] ?? '[MAIN]', return: scope.string, isstring: true }); },
+            '__FUNC__': function*(node, scope,){ yield new Literal({ value: scope.funcname[scope.funcname.length - 1] ?? '[MAIN]', return: scope.string, isstring: true }); },
             '__LINE__': function*(node, scope){ yield new Literal({ value: node.line, return: scope.number, isstring: false }); },
             '__FILE__': function*(node, scope){ yield new Literal({ value: scope.filename[scope.filename.length - 1], return: scope.string, isstring: true }); },
             '__TIME__': function*(node, scope){ yield new Literal({ value: (new Date()).toISOString(), return: scope.string, isstring: true }); },
+            '__ENUM__': function*(node, scope, args) {
+                if (args.length != 2) { console.warn(`__ENUM__ takes 2 arguments but passed${args.length}`); }
+                if (!(args[0] instanceof Literal)) { console.warn(`__ENUM__ arg 1 passed '${args[0].constructor.name}' but expected 'literal'`); }
+                if (!(args[1] instanceof Literal)) { console.warn(`__ENUM__ arg 2 passed '${args[0].constructor.name}' but expected 'literal'`); }
+                
+                let enumv = scope.enumReverse[args[0].value]?.[args[1].value];
+                
+                yield new Literal({ value: enumv, return: scope.string, isstring: true });
+            }
         };
         
         this.forceinline = false;
@@ -1257,7 +1267,7 @@ export class Scope {
         }
         
         throw new NoSuchOperator(`${name}(${sParam})`);
-    }
+    }n
     
     applyOP(exp, name) {
         let op = this.getOP(name, [exp]);
@@ -1460,7 +1470,7 @@ export class Scope {
     
     preProcessorPop() {
         if (this.isPreProcess == 0)
-            throw Error('preProcessor pop zero stack')
+            throw new Error('preProcessor pop zero stack')
             
         this.isPreProcess--;
     }
@@ -1492,10 +1502,10 @@ export class Scope {
             fpath = input;
         }
         
-        if (!this.parser) throw Error('ParserNotFound');
+        if (!this.parser) throw new Error('ParserNotFound');
         
         if (this.includeCycle[lowerpath]) {
-            throw Error('CycleInclude');
+            throw new Error('CycleInclude');
         }
         
         if (this.includePreCache[lowerpath]) {
@@ -1532,7 +1542,7 @@ export class Scope {
     IncludeToBlock(fpath) {
         fpath = fpath.toLowerCase();
         
-        if (!this.parser) throw Error('ParserNotFound');
+        if (!this.parser) throw new Error('ParserNotFound');
         
         if (!this.includePreCache[fpath])
             throw new Error(`${fpath} not preCached, parsing unavailable`);
@@ -1569,7 +1579,7 @@ export class Scope {
     
     /** @return {Root} */
     BlockFromRaw(code) {
-        if (!this.parser) throw Error('ParserNotFound');
+        if (!this.parser) throw new Error('ParserNotFound');
         
         let saveAnnos = this.annotationsPop();
             for (let node of travel([preProccessSync(this.parser.parseLiteCode(code), this)], this)) {
@@ -1627,7 +1637,7 @@ export class Scope {
                             | (?<name_18> enablect    )                             // check types
                             | (?<name_22> enum        ) \s+  (?<ename_1> \w+)     \s+ {(?<eval_1> [^}]+?)}
                             | (?<name_3 > include     ) \s* "(?<path _1> [^"]+?)"
-                            | (?<name_20> includepref ) \s+  (?<pref _1> \S+)
+                            | (?<name_20> ipref       ) \s+  (?<pref _1> \S+)
                             | (?<name_4 > type        ) \s+  (?<type _1> \w+)
                             | (?<name_13> typedef     ) \s+  (?<type _3> \w+)     \s+ (?<tdef_1> \S+)
                             | (?<name_5 > return      ) \s+  (?<type _2> \w+)
@@ -1692,7 +1702,7 @@ export class Scope {
                     this.forceinline = true;
                     break;
                     
-                case 'includepref':
+                case 'ipref':
                     this.includepref = cap.pref;
                     break;
                 
@@ -1717,8 +1727,11 @@ export class Scope {
                     
                 case 'enum':
                     let enumName = cap.ename;
+                    let revals = {};
                     let evals = {};
                     let counter = 1;
+                    
+                    this.enumReverse[enumName] = revals;
                     
                     for (let arg of cap.eval.matchAll(/\s*([^,=\s]+)\s*(?:=([^,]+))?(?:,)?(?:#.+?\n)?/gm)) {
                         let ename = arg[1];
@@ -1728,9 +1741,10 @@ export class Scope {
                         this.defines[fullEName] = ival;
                         
                         evals[ename] = ival;
+                        revals[ival] = fullEName;
                     }
                     
-                    anno = new Annotation({ name: name, value: { name: cap.ename, evals: evals } });
+                    anno = new Annotation({ name: name, value: { name: cap.ename, evals: evals, revals: revals } });
                     break;
                     
                 case 'undefine':
@@ -1745,7 +1759,7 @@ export class Scope {
                         for (let arg of cap.args.matchAll(/\s*(\w+),?/gm))
                             args.push(arg[1]);
                     
-                    this.defines[cap.arg1] = [ cap.arg2.replace(/\\(\s)/g, '$1'), args ];
+                    this.defines[cap.arg1] = [ cap.arg2.replace(/\\(\s\r?)/g, '$1'), args ];
                     anno = new Annotation({ name: name, value: { name: cap.arg1, code: cap.arg2, args } });
                     break;
                 
@@ -2297,7 +2311,10 @@ function *travel(node, scope, depth = 0) {
                         case node instanceof Expression: t_kv.push(node); break;
                         case node instanceof Delimiter:  yield node;      break;
                         case node instanceof Promise:    yield node;      break;
-                        default: throw new UnexpectedToken(node);
+                        default:
+                            if (scope.isinsidedefine) {
+                                t_kv.push(node);
+                            } else throw new UnexpectedToken(node);
                     }
                     scope.LeaveNode(node);
                 }
@@ -2321,7 +2338,10 @@ function *travel(node, scope, depth = 0) {
                         case node instanceof Expression: t_args.push(node); break;
                         case node instanceof Delimiter:  yield node;        break;
                         case node instanceof Promise:    yield node;        break;
-                        default: throw new UnexpectedToken(node);
+                        default:
+                            if (scope.isinsidedefine) {
+                                t_args.push(node);
+                            } else throw new UnexpectedToken(node);
                     }
                     scope.LeaveNode(node);
                 }
@@ -2332,46 +2352,56 @@ function *travel(node, scope, depth = 0) {
             case 't_index':
                 let t_index_exp = null;
                 let t_index_type = null;
+                let t_index_return = null;
                 let t_index_ops = 0;
                 
                 scope.assDisablePush();
                 for (let node of travel(childNodes, scope, depth)){
                     scope.EnteredNode(node);
                     switch(true) {
-                        case node instanceof LexemBkt:                        break;
-                        case node instanceof LexemComma:                      break;
-                        case node instanceof Expression: t_index_exp  = node; break;
-                        case node instanceof Type:       t_index_type = node; break;
-                        case node instanceof Delimiter:  yield node;          break;
-                        case node instanceof Promise:    yield node;          break;
+                        case node instanceof LexemBkt:                          break;
+                        case node instanceof LexemComma:                        break;
+                        case node instanceof Expression: t_index_exp  = node;   break;
+                        case node instanceof Type:       t_index_return = node; break;
+                        case node instanceof Delimiter:  yield node;            break;
+                        case node instanceof Promise:    yield node;            break;
                         default: throw new UnexpectedToken(node);
                     }
                     scope.LeaveNode(node);
                 }
                 scope.assDisablePop();
                 
-                if (!t_index_type) {
+                if (!t_index_return) {
                     let op = scope.getOP('idx', [scope.exps()[scope.exps().length - 1], t_index_exp]);
                     
-                    t_index_type = op.return;
+                    t_index_return = op.return;
                     t_index_ops = op.ops;
                 } else {
-                    let op = scope.getOP('idx', [new Expression({ return: t_index_type }), '=', scope.exps()[scope.exps().length - 1], t_index_exp]);
+                    let op = scope.getOP('idx', [new Expression({ return: t_index_return }), '=', scope.exps()[scope.exps().length - 1], t_index_exp]);
                     
                     t_index_ops = op.ops;
+                    t_index_type = t_index_return;
                 }
                 
-                yield new Index({ value: t_index_exp, type: t_index_type, ops: t_index_ops });
+                yield new Index({ value: t_index_exp, type: t_index_type, ops: t_index_ops, return: t_index_return });
                 break;
                 
             case 't_call':
                 let callee = null;
                 let t_call_args = null;
+                let t_call_define = false;
                 
                 for (let node of travel(childNodes, scope, depth)){
                     scope.EnteredNode(node);
                     switch(true) {
-                        case node instanceof LexemFuncName: callee = node.value;      break;
+                        case node instanceof LexemFuncName:
+                            callee = node.value;
+                            
+                            if (scope.defines[callee] || scope.fdefine[callee]) {
+                                scope.isinsidedefine++;
+                                t_call_define = true;
+                            }
+                            break;
                         case node instanceof LexemArgs:     t_call_args = node.value; break;
                         case node instanceof Delimiter:     yield node;               break;
                         case node instanceof Promise:       yield node;               break;
@@ -2379,6 +2409,9 @@ function *travel(node, scope, depth = 0) {
                     }
                     scope.LeaveNode(node);
                 }
+                
+                if (t_call_define)
+                    scope.isinsidedefine--;
                 
                 if (scope.flag_isMethod == depth) {
                     scope.funcRetTypeDisablePush();
@@ -2393,7 +2426,7 @@ function *travel(node, scope, depth = 0) {
                     callee,
                     arguments: t_call_args,
                     method: false,
-                    ...(scope.defines[callee] ? { return: scope.void } : (scope.getFunction(callee, t_call_args, scope.exps().length ? scope.exps()[scope.exps().length - 1].return : null))),
+                    ...(t_call_define ? { return: scope.void } : (scope.getFunction(callee, t_call_args, scope.exps().length ? scope.exps()[scope.exps().length - 1].return : null))),
                 });
                 
                 if (scope.flag_isMethod == depth) {
@@ -3083,7 +3116,10 @@ function *travel(node, scope, depth = 0) {
                         case node instanceof Assignment: yield node; break;
                         case node instanceof Delimiter:  yield node; break;
                         case node instanceof Promise:    yield node; break;
-                        default: throw new UnexpectedToken(node);
+                        default:
+                            if (scope.isinsidedefine) {
+                                yield node;
+                            } else throw new UnexpectedToken(node);
                     }
                     scope.LeaveNode(node);
                 }
@@ -3306,7 +3342,7 @@ function *travel(node, scope, depth = 0) {
                     switch(true) {
                         case node instanceof LexemText:
                             let ret;
-                            let gen = includeDefine(node);
+                            let gen = includeDefine(node, [], expr_anno);
                             while(!(ret = gen.next()).done) yield ret.value;
                             
                             if (!ret.value) {
@@ -3462,30 +3498,62 @@ function *travel(node, scope, depth = 0) {
                     return retVar;
                 }
                 
-                function* includeDefine(node) {
+                function* includeDefine(node, args = [], annotations = []) {
                     let define = null;
+                    let dargs = null;
                     
                     if (node instanceof LexemConstant) {
-                        define = scope.defines[node.value]?.[0];
+                        [define, dargs] = scope.defines[node.value] ?? [];
                     } else if (node instanceof LexemText) {
-                        define = scope.defines[node.text]?.[0];
+                        [define, dargs] = scope.defines[node.text] ?? [];
+                    } else if (node instanceof Call) {
+                        [define, dargs] = scope.defines[node.callee] ?? [];
                     } else return false;
                     
                     if (define) {
-                        let last_stmt_flas = scope.flag_laststmt;
-                        let stmts = scope.BlockFromRaw(define).block.statements;
-                        scope.flag_laststmt = last_stmt_flas;
+                        let annos = annotations.concat(node.annotations);
+                        let ldef = null;
                         
-                        if (scope.flag_laststmt == depth - 1) {
-                            for (let stmt of stmts)
+                        if (dargs) {
+                            ldef = {};
+                            
+                            for (let key of dargs) {
+                                ldef[key] = scope.defines[key];
+                            }
+                            
+                            for (let i = 0; i < args.length; i++) {
+                                scope.defines[dargs[i]] = [partCompile(args[i], scope.e2data, { pretty: false }), []];
+                            }
+                        }
+                        
+                        let last_indefine = scope.isinsidedefine;
+                        let last_stmt_flas = scope.flag_laststmt;
+                        
+                        scope.isinsidedefine = 0;
+                        let stmts = scope.BlockFromRaw(define).block.statements;
+                        
+                        scope.flag_laststmt = last_stmt_flas;
+                        scope.isinsidedefine = last_indefine;
+                        
+                        if (scope.flag_laststmt == depth - 1 || scope.isinsidedefine) {
+                            for (let stmt of stmts) {
+                                stmt.annotations = stmt.annotations.concat(annos);
                                 yield stmt;
+                            }
                         } else {
                             if (stmts.length != 1) {
                                 throw new Error(`Only one expression is allowed inside an expression: ${define}`);
                             } else if (!(stmts[0] instanceof Expression)) {
                                 throw new Error(`Statements are not allowed inside expressions: ${define}`);
                             } else {
+                                stmts[0].annotations = stmts[0].annotations.concat(annos);
                                 yield stmts[0];
+                            }
+                        }
+                        
+                        if (ldef) {
+                            for (let [key, val] of Object.entries(ldef)) {
+                                scope.defines[key] = val;
                             }
                         }
                     } else return false;
@@ -3495,45 +3563,22 @@ function *travel(node, scope, depth = 0) {
                 
                 switch(true) {
                     case is_len(1) && is_inst([Var]):
+                        exps[0].annotations = exps[0].annotations.concat(expr_anno);
+                        exps[0].recalculateAnno();
+                        yield exps[0];
+                        break;
+                    
                     case is_len(1) && is_inst([Call]):
                     // case is_len(1) && is_inst([StringCall]):
                     // case is_len(1) && is_inst([Assignment]):
-                    
-                    if (is_inst([Call]) && !exps[0].method && scope.defines[exps[0].callee]) {
-                        let dcall = scope.defines[exps[0].callee];
-                        let define = dcall[0];
-                        let ldef = {};
-                        
-                        for (let key of dcall[1]) {
-                            ldef[key] = scope.defines[key];
-                        }
-                        
-                        for (let i = 0; i < exps[0].arguments.length; i++) {
-                            scope.defines[dcall[1][i]] = [partCompile(exps[0].arguments[i], scope.e2data, { pretty: false }), []];
-                        }
-                        
-                        let last_stmt_flas = scope.flag_laststmt;
-                        let stmts = scope.BlockFromRaw(define).block.statements;
-                        scope.flag_laststmt = last_stmt_flas;
-                        
-                        if (scope.flag_laststmt == depth - 1) {
-                            for (let stmt of stmts)
-                                yield stmt;
-                        } else {
-                            if (stmts.length != 1) {
-                                throw new Error(`Only one expression is allowed inside an expression: ${define}`);
-                            } else if (!(stmts[0] instanceof Expression)) {
-                                throw new Error(`Statements are not allowed inside expressions: ${define}`);
-                            } else {
-                                yield stmts[0];
-                            }
-                        }
-                        
-                        for (let key of dcall[1]) {
-                            scope.defines[key] = ldef[key];
-                        }
+                    if (scope.fdefine[exps[0].callee]) {
+                        yield* scope.fdefine[exps[0].callee](exps[0], scope, exps[0].arguments);
                     } else {
-                        if (is_inst([Call])) {
+                        let ret;
+                        let gen = includeDefine(exps[0], exps[0].arguments, expr_anno);
+                        while(!(ret = gen.next()).done) yield ret.value;
+                        
+                        if (!ret.value) {
                             let findInlineAnno = expr_anno.find((val) => val.name == 'inline');
                             let findNoInlineAnno = expr_anno.find((val) => val.name == 'noinline');
                             
@@ -3542,9 +3587,11 @@ function *travel(node, scope, depth = 0) {
                             }
                         }
                         
-                        exps[0].annotations = exps[0].annotations.concat(expr_anno);
-                        exps[0].recalculateAnno();
-                        yield exps[0];
+                        if (!ret.value) {
+                            exps[0].annotations = exps[0].annotations.concat(expr_anno);
+                            exps[0].recalculateAnno();
+                            yield exps[0];
+                        }
                     }
                     break;
                     // case is_len(2) && is_inst([Var, LexemOpIncDec]):
@@ -3562,7 +3609,7 @@ function *travel(node, scope, depth = 0) {
                             yield* scope.fdefine[literal_node.value](literal_node, scope);
                         } else {
                             let ret;
-                            let gen = includeDefine(literal_node);
+                            let gen = includeDefine(literal_node, [], expr_anno);
                             while(!(ret = gen.next()).done) yield ret.value;
                             
                             if (!ret.value) {

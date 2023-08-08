@@ -13,41 +13,110 @@
 #@typedef table clua_scopes
 #@typedef table clua_scopes_in_scope
 
-if(first()){
-	##@inline
-	#@includepref lua/
-	#include "clua_env"
-	
-	function table table:cluaNewVar(Type:string){
-		#[@debug]#
-		if(This["_class",string] != "clua_instance"){
-			error("cluaNewVar can't use to " + This["_class",string])
+#[
+	@define _assert(CONDITION, MSG) \
+		if (!CONDITION) { \
+			error(__FUNC__ + " " + MSG) \
 		}
 		
+	@define _assertClass(T, MSG, TYPE) \
+		_assert(T["_class",number] == TYPE, MSG + __ENUM__("_CLUA_TYPE_", TYPE))
+		
+	@define _assertSubClass(T, MSG, TYPE) \
+		_assert(T["_subclass",number] == TYPE, MSG) #TODO: subclass #+ __ENUM__("_CLUA_TYPE_", TYPE)
+		
+	@define _assertType(T, MSG, TYPE) \
+		_assert(T["_Type",number] == TYPE, MSG)
+		
+	@define _debug(EXPR) #[@debug]# EXPR
+		
+	
+	
+	
+	@enum _LUA_TYPE_ {
+		USERDATA,
+		FUNCTION,
+		BOOLEAN ,
+		STRING  ,
+		NUMBER  ,
+		THREAD  ,
+		TABLE   ,
+		NIL     ,
+	}
+	
+	@enum _CLUA_TYPE_ {
+		INSTANCE,
+		VARIABLE,
+		FUNC    ,
+		FUNC_EXT,
+		
+		CONTEXT ,
+		CONTEXTS,
+		CONTEXTS_IN_SCOPE,
+		
+		SCOPE ,
+		SCOPES,
+		SCOPES_IN_SCOPE,
+	}
+	
+	@enum _CLUA_INST_ {
+		EXT_CALL   , #statments
+		CALL       ,
+		DECLARATION,
+		ASSIGMENT  ,
+		CONTINUE   , #GLUA
+		BREAK      ,
+		RETURN     ,
+		LABEL      ,
+		GOTO       ,
+		BLOCK      ,
+		IF         ,
+		FOR        ,
+		WHILE      ,
+		REPEAT     ,
+		
+		IDENTIFIER , #expression
+		VARARG     ,
+		LITERAL    ,
+		TABLE      ,
+		LOOKUP     ,
+		UNARY      ,
+		BINARY     ,
+		FUNCTION   ,
+		
+		CTX        , #for internal
+	}
+]#
+
+if(first()){
+	##@inline
+	#@ipref lua/
+	#include "clua_env"
+	
+	function table table:cluaNewVar(Type){
+		_debug(_assertClass(This, "can't use to", _CLUA_TYPE_INSTANCE))
+		
 		switch(Type){
-			case "userdata",
-			case "function",
-			case "boolean",
-			case "string",
-			case "number",
-			case "thread",
-			case "table",
-			case "nil",
+			case _LUA_TYPE_USERDATA, # "userdata",
+			case _LUA_TYPE_FUNCTION, # "function",
+			case _LUA_TYPE_BOOLEAN , # "boolean",
+			case _LUA_TYPE_STRING  , # "string",
+			case _LUA_TYPE_NUMBER  , # "number",
+			case _LUA_TYPE_THREAD  , # "thread",
+			case _LUA_TYPE_TABLE   , # "table",
+			case _LUA_TYPE_NIL     , # "nil",
 				return table(
 					#"Value" = ...,
 					"Type" = Type,
-					"_class" = "clua_variable"
+					"_class" = _CLUA_TYPE_VARIABLE
 				)
 			
 			default, error("cluaNewVar var type not found: " + Type)
 		}
 	}
 	
-	function table table:cluaGetVar(Name:string){ #[ Prototype [Not use very hard, use stack alternative (identifier)] (DEBUG) ]#
-		#[@debug]#
-		if(This["_class",string] != "clua_context"){
-			error("cluaGetVar can't get var from: " + This["_class",string])
-		}
+	function table table:cluaGetVar(Name:string){ #[ Prototype [Not use very expensive, use stack alternative (identifier)] (DEBUG) ]#
+		_debug(_assertClass(This, "can't get var from:", _CLUA_TYPE_CONTEXT))
 		
 		if(1){ #[ Find from local scopes ]#
 			local Scopes = This["Scopes",table]
@@ -71,44 +140,35 @@ if(first()){
 			}
 			
 			if(1){
-				return Instance:cluaNewVar("nil")
+				return Instance:cluaNewVar(_LUA_TYPE_NIL)
 			}
 		}
 	}
 	
 	function table table:cluaMakeExtFunc(Name:string){
-		#[@debug]#
-		if(This["_class",string] != "clua_instance"){
-			error("cluaBuildEnv can't use to " + This["_class",string])
-		}
+		_debug(_assertClass(This, "can't use to", _CLUA_TYPE_INSTANCE))
 		
-		local ExtFunc = This:cluaNewVar("function")
+		local ExtFunc = This:cluaNewVar(_LUA_TYPE_FUNCTION)
 		
 		ExtFunc["Value",table] = table(
 			"Code" = table(
-				"_Type" = "block",
+				"_Type" = _CLUA_INST_BLOCK,
 				1 = table(
-					"_Type" = "ext_call",
+					"_Type" = _CLUA_INST_EXT_CALL,
 					1 = "clua_" + Name
 				)
 			),
 			"Instance" = This,
 			"Args" = table(), #[ always empty ]#
-			"_class" = "clua_func_ext"
+			"_class" = _CLUA_TYPE_FUNC_EXT
 		)
 		
 		return ExtFunc
 	}
 	
 	function table table:cluaBuildEnv(Vars:table){
-		#[@debug]#
-		if(This["_class",string] != "clua_instance"){
-			error("cluaBuildEnv can't use to " + This["_class",string])
-		}
-		
-		if(Vars["_class",string]){
-			error("cluaBuildEnv accept only table variables")
-		}
+		_debug(_assertClass(This, "can't use to", _CLUA_TYPE_INSTANCE))
+		_assertClass(Vars, "accept only table variables", _CLUA_TYPE_VARIABLE)
 		
 		This["Vars",table] = This["Vars",table]:merge(Vars)
 		
@@ -117,10 +177,7 @@ if(first()){
 	
 	
 	function table table:cluaBuildEnv(){
-		#[@debug]#
-		if(This["_class",string] != "clua_instance"){
-			error("cluaBuildEnv can't use to " + This["_class",string])
-		}
+		_debug(_assertClass(This, "can't use to", _CLUA_TYPE_INSTANCE))
 		
 		This["Vars",table] = table(
 			"print" = This:cluaMakeExtFunc("print")
@@ -135,39 +192,25 @@ if(first()){
 		return table(
 			"Vars" = table(),
 			"Version" = Version,
-			"_class" = "clua_instance"
+			"_class" = _CLUA_TYPE_INSTANCE
 		):cluaBuildEnv()
 	}
 	
 	function table table:cluaToFunc(Code:table){
-		#[@debug]#
-		if(This["_class",string] != "clua_instance"){
-			error("cluaToFunc not compile to function (This): " + This["_class",string])
-		}
-		
-		#[@debug]#
-		if(Code["_Type",string] != "block"){
-			error("cluaToFunc not compile to function (Code): " + This["_class",string])
-		}
+		_debug(_assertClass(This, "not compile to function (This):", _CLUA_TYPE_INSTANCE))
+		_debug(_assertType(Code, "not compile to function (Code)", _CLUA_INST_BLOCK))
 		
 		return table(
 			"Code" = Code,
 			"Instance" = This,
 			"Args" = table(),
-			"_class" = "clua_func"
+			"_class" = _CLUA_TYPE_FUNC
 		)
 	}
 	
 	function table table:cluaSCOPEpushLastScopeInScope(Scope:table){
-		#[@debug]#
-		if(This["_class",string] != "clua_scopes"){
-			error("cluaSCOPEpushLastScopeInScope can't use to: " + This["_class",string])
-		}
-		
-		#[@debug]#
-		if(This["_classsub",string] == "clua_scopes_in_scope"){
-			error("cluaSCOPEpushLastScopeInScope the function can only be used inside the scope context")
-		}
+		_debug(_assertClass(This, "can't use to:", _CLUA_TYPE_SCOPES))
+		_debug(_assertSubClass(This, "the function can only be used inside the scope context:", _CLUA_TYPE_SCOPES_IN_SCOPE))
 		
 		local LScope = This[This:ncount(),table]
 		LScope["Scopes",table]:pushTable(Scope)
@@ -176,30 +219,23 @@ if(first()){
 	}
 	
 	function table table:cluaSCOPEpush(Code:table){
-		#[@debug]#
-		if(This["_class",string] != "clua_scopes"){
-			error("cluaSCOPEpush can't use to: " + This["_class",string])
-		}
-		
-		#[@debug]#
-		if(!Code["_Type",string]){
-			error("cluaSCOPEpush Statment type is null")
-		}
+		_debug(_assertClass(This, "can't use to:", _CLUA_TYPE_SCOPES))
+		_debug(_assert(Code["_Type",string], "Statment type is null"))
 		
 		This:pushTable(table(
 			"Code" = Code,
 			"Vars" = table(),
 			"Scopes" = table(
-				"_class" = "clua_scopes",
-				"_classsub" = "clua_scopes_in_scope"
+				"_class" = _CLUA_TYPE_SCOPES,
+				"_classsub" = _CLUA_TYPE_SCOPES_IN_SCOPE
 			),
 			"Contexts" = table(
-				"_class" = "clua_contexts",
-				"_classsub" = "clua_contexts_in_scope"
+				"_class" = _CLUA_TYPE_CONTEXTS,
+				"_classsub" = _CLUA_TYPE_CONTEXTS_IN_SCOPE
 			),
 			"Return" = table(),
 			"Instruction" = 1,
-			"_class" = "clua_scope"
+			"_class" = _CLUA_TYPE_SCOPE
 		))
 		
 		return This
@@ -216,14 +252,15 @@ if(first()){
 	}
 	
 	function table table:cluaCreateFuncContext(){
-		#[@debug]#
-		if(This["_class",string] != "clua_func" & This["_class",string] != "clua_func_ext"){
-			error("cluaCreateFuncContext can't create context: " + This["_class",string])
-		}
+		_debug(_assert(
+			This["_class",number] == _CLUA_TYPE_FUNC |
+			This["_class",number] == _CLUA_TYPE_FUNC_EXT,
+			"can't create context"
+		))
 		
 		local Ctx = table(
 			"Scopes" = table(
-				"_class" = "clua_scopes"
+				"_class" = _CLUA_TYPE_SCOPES
 			):cluaSCOPEpush(This["Code",table]),
 			"Instance" = This["Instance",table],
 			"Func" = This,
@@ -231,10 +268,10 @@ if(first()){
 			"VarArg" = table(),
 			"Return" = table(),
 			"Contexts" = table(
-				"_class" = "clua_contexts"
+				"_class" = _CLUA_TYPE_CONTEXTS
 			),
 			"DeadScope" = table(),
-			"_class" = "clua_context"
+			"_class" = _CLUA_TYPE_CONTEXT
 		)
 		
 		Ctx["Contexts",table]:pushTable(Ctx)
@@ -265,10 +302,7 @@ if(first()){
 	}
 	
 	function number table:cluaContextExecute(Perf){
-		#[@debug]#
-		if(This["_class",string] != "clua_context"){
-			error("cluaContextExecute can't execute: " + This["_class",string])
-		}
+		_debug(_assertClass(This, "can't execute: ", _CLUA_TYPE_CONTEXT))
 		
 		if(This["IsComplete",number]){
 			return 1
@@ -287,11 +321,11 @@ if(first()){
 			local SVars = LScope["Vars",table]
 			local Code = LScope["Code",table]
 			
-			local Type = Code["_Type",string]
+			local Type = Code["_Type",number]
 			local I = LScope["Instruction",number]
 			
 			switch(Type){
-				case "block",
+				case _CLUA_INST_BLOCK,
 					if(Code:ncount() + 1 == I){
 						Scopes:cluaSCOPEpop()
 						break
@@ -301,7 +335,7 @@ if(first()){
 					Scopes:cluaSCOPEpush(Statment)
 					break
 					
-				case "ctx", #[ Function in function ]#
+				case _CLUA_INST_CTX, #[ Function in function ]#
 					local Ctx = Code[1,table]
 					
 					if(I == 1){
@@ -315,7 +349,7 @@ if(first()){
 					Scopes:cluaSCOPEpushReturns(DeadScope["Return",table])
 					break
 					
-				case "ext_call", #[ Call e2 function ]#
+				case _CLUA_INST_EXT_CALL, #[ Call e2 function ]#
 					local VarArg = Context["VarArg",table]
 					local E2Func = Code[1,string]
 					
@@ -323,7 +357,7 @@ if(first()){
 					Scopes:cluaSCOPEpushReturns(Rets)
 					break
 					
-				case "call",
+				case _CLUA_INST_CALL, "call", #TODO: обьявить все не понятные возвраты
 					local Args = Code[2,table]
 					local ArgsCount = Args:ncount() + 1
 					local I = ArgsCount - I
@@ -338,11 +372,11 @@ if(first()){
 						local LScopes = LScope["Scopes",table]
 						local LScopesCount = LScopes:ncount()
 						local Callee = LScopes[LScopesCount,table]["Return",table][1,table]
-						local CalleeType = Callee["Type",string]
+						local CalleeType = Callee["Type",number]
 						
-						if(CalleeType == "function"){
+						if(CalleeType == _LUA_TYPE_FUNCTION){
 							LScopes[LScopesCount,table] = Callee
-						}elseif(CalleeType == "table"){
+						}elseif(CalleeType == _LUA_TYPE_TABLE){
 							error("Not implement (check __call metamethod)") #TODO: 
 						}else{
 							error("attempt to call a " + CalleeType + " value")
@@ -384,17 +418,17 @@ if(first()){
 					}else{
 						local LScopes = LScope["Scopes",table]
 						local Callee = LScopes[LScopes:ncount(),table]
-						local CalleeType = Callee["Type",string]
+						local CalleeType = Callee["Type",number]
 						
-						if(CalleeType == "function"){
+						if(CalleeType == _LUA_TYPE_FUNCTION){
 							Scopes:cluaSCOPEpop()
 							Scopes:cluaSCOPEpush(
 								table(
-									"_Type" = "ctx",
+									"_Type" = _CLUA_INST_CTX,
 									1 = Callee["NewCtx",table]
 								)
 							)
-						}elseif(CalleeType == "table"){
+						}elseif(CalleeType == _LUA_TYPE_TABLE){
 							error("Not implement (check __call metamethod)") #TODO: 
 						}else{
 							print(format("%p", LScopes))
@@ -403,28 +437,28 @@ if(first()){
 					}
 					break
 					
-				case "literal",
-					local VarType = Code[1,string]
+				case _CLUA_INST_LITERAL,
+					local VarType = Code[1,number]
 					local Variable = Instance:cluaNewVar(VarType)
 					
 					switch(VarType){
-						case "number",
-						case "boolean",
+						case _LUA_TYPE_NUMBER,
+						case _LUA_TYPE_BOOLEAN,
 							Variable["Value",number] = Code[2,number]
 							break
 						
-						case "string",
+						case _LUA_TYPE_STRING,
 							Variable["Value",string] = Code[2,string]
 							break
 							
-						case "nil", break
+						case _LUA_TYPE_NIL, break
 						default, error("VarType Type in not defined: " + VarType)
 					}
 					
 					Scopes:cluaSCOPEpushReturn(Variable)
 					break
 					
-				case "identifier",
+				case _CLUA_INST_IDENTIFIER,
 					local I = ScopesCount - I
 					local Name = Code[1,string]
 					local Variable = table()
@@ -444,8 +478,8 @@ if(first()){
 					}
 					
 					if(I != -1){
-						if(Variable["_class",string] == "clua_variable"){
-							if(Variable["Type",string] == "function"){
+						if(Variable["_class",number] == _CLUA_TYPE_VARIABLE){
+							if(Variable["Type",number] == _LUA_TYPE_FUNCTION){
 								Variable["NewCtx",table] = Variable["Value",table]:cluaCreateFuncContext()
 							}
 							
@@ -453,9 +487,13 @@ if(first()){
 						}
 					}else{
 						Scopes:cluaSCOPEpushReturn(
-							Instance:cluaNewVar("nil")
+							Instance:cluaNewVar(_LUA_TYPE_NIL)
 						)
 					}
+					break
+					
+				case _CLUA_INST_BINARY,
+					
 					break
 					
 				default,

@@ -135,6 +135,8 @@ const yarg = yargs(hideBin(process.argv))
 		const outdir = /** @type {string} */ (argv.out);
 		const input = /** @type {string} */ (argv.in);
 		
+		console.log("# Compile Time: " + (new Date()).toString())
+		
 		const [ outs, firstname ] = tree.compile(
 			await tree.clear(input == 'stdin' ? process.stdin : input, fat, parser), fat, {
 				pretty: argv.pretty ?? false,

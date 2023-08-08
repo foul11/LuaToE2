@@ -18,6 +18,17 @@ local F = string.format
 
 -- file:close()
 
+local _LUA_TYPES = {
+		USERDATA = 1,
+		FUNCTION = 2,
+		BOOBLEAN = 3,
+		STRING   = 4,
+		NUMBER   = 5,
+		THREAD   = 6,
+		TABLE    = 7,
+		NIL      = 8,
+	}
+
 local code = io.read('*a')
 
 local ast = parser.parse(code)
@@ -46,22 +57,22 @@ local function _compileE2_Expressions(ast)
 		if Type == 'literal' then
 			if isnumber(ast.value) then
 				table.insert(Ret, '1 = ')
-				table.insert(Ret, F('%q', type(ast.value)))
+				table.insert(Ret, F('%q', _LUA_TYPES[type(ast.value):upper()]))
 				table.insert(Ret, ', 2 = ')
 				table.insert(Ret, ast.value)
 			elseif isstring(ast.value) then
 				table.insert(Ret, '1 = ')
-				table.insert(Ret, F('%q', type(ast.value)))
+				table.insert(Ret, F('%q', _LUA_TYPES[type(ast.value):upper()]))
 				table.insert(Ret, ', 2 = ')
 				table.insert(Ret, F("%q", ast.value))
 			elseif isboolean(ast.value) then
 				table.insert(Ret, '1 = ')
-				table.insert(Ret, F('%q', type(ast.value)))
+				table.insert(Ret, F('%q', _LUA_TYPES[type(ast.value):upper()]))
 				table.insert(Ret, ', 2 = ')
 				table.insert(Ret, ast.value and '1' or '0')
 			elseif isnil(ast.value) then
 				table.insert(Ret, '1 = ')
-				table.insert(Ret, F('%s', type(ast.value)))
+				table.insert(Ret, F('%s', _LUA_TYPES[type(ast.value):upper()]))
 			end
 		elseif Type == 'identifier' then
 			table.insert(Ret, '1 = ')
