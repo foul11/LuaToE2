@@ -285,7 +285,21 @@ export class LexemElseIf extends LexemValue {}
 export class LexemArgs extends LexemValue {}
 export class LexemCondition extends LexemValue {}
 export class LexemFuncArgs extends LexemValue {}
-export class LexemFuncName extends LexemValue {}
+export class LexemFuncName extends LexemValue {
+    /**
+     * @param {{
+    *  line: number,
+    *  value?: any,
+    * }} value
+    */
+    
+    constructor(value) {
+       super(value);
+       
+       /** @type {number} */
+       this.line = value.line;
+   }
+}
 export class LexemConst extends LexemValue {
     /**
      * @param {{
@@ -654,6 +668,7 @@ export class Call extends MultiClass(Expression, Statement) {
      *  parent?: Reference,
      *  return?: Type,
      *  ref?: Reference,
+     *  line?: number,
      * }} options
      **/
     
@@ -671,6 +686,8 @@ export class Call extends MultiClass(Expression, Statement) {
         this.parent = options.parent ?? new Reference();
         /** @type {Reference} */
         this.ref = options.ref ?? null;
+        /** @type {number} */
+        this.line = options.line ?? null;
     }
 }
 
@@ -1028,19 +1045,22 @@ export class Scope {
         this.filename = [];
         this.funcname = [];
         
-        this.includeCache = {};
-        this.includePreCache = {};
-        this.includeCycle = {};
+        this.includeCache = Object.create(null);
+        this.includePreCache = Object.create(null);
+        this.includeCycle = Object.create(null);
         this.includepref = '';
         
         // let defineToCompiler = function*(node, scope){ yield new Literal({ value: node.value, return: scope.string, isstring: true, internal: true }); };
-        this.customFunc = {};
-        this.enumReverse = {};
+        this.customFunc = Object.create(null);
+        this.enumReverse = Object.create(null);
         this.isinsidedefine = 0;
-        this.defines = {};
-        this.fdefine = { // regarding sources
+        this.defineLine = null;
+        this.nextNotPushScope = false;
+        this.defines = Object.create(null);
+        this.recurseCount = Object.create(null);
+        this.fdefine = Object.assign(Object.create(null), { // regarding sources
             '__FUNC__': function*(node, scope,){ yield new Literal({ value: scope.funcname[scope.funcname.length - 1] ?? '[MAIN]', return: scope.string, isstring: true }); },
-            '__LINE__': function*(node, scope){ yield new Literal({ value: node.line, return: scope.number, isstring: false }); },
+            '__LINE__': function*(node, scope){ yield new Literal({ value: scope.defineLine ?? node.line, return: scope.number, isstring: false }); },
             '__FILE__': function*(node, scope){ yield new Literal({ value: scope.filename[scope.filename.length - 1], return: scope.string, isstring: true }); },
             '__TIME__': function*(node, scope){ yield new Literal({ value: (new Date()).toISOString(), return: scope.string, isstring: true }); },
             '__ENUM__': function*(node, scope, args) {
@@ -1051,8 +1071,21 @@ export class Scope {
                 let enumv = scope.enumReverse[args[0].value]?.[args[1].value];
                 
                 yield new Literal({ value: enumv, return: scope.string, isstring: true });
-            }
-        };
+            },
+            '__BINARY__': function*(node, scope, args) {
+                if (args.length != 3) { console.warn(`__ENUM__ takes 2 arguments but passed${args.length}`); }
+                if (!(args[1] instanceof Literal)) { console.warn(`__ENUM__ arg 1 passed '${args[0].constructor.name}' but expected 'literal'`); }
+                
+                let op = args[1].value;
+                
+                yield new Binary({
+                   left: args[0],
+                   operator: op,
+                   right: args[2],
+                   ...scope.getOP(Scope.BINARY_TO_OPNAME[op], [args[0], args[2]]),
+                });
+            },
+        });
         
         this.forceinline = false;
         
@@ -1138,12 +1171,12 @@ export class Scope {
         this.assigment.pop();
     }
     
-    /** @param {Block} blk @deprecated */
+    /** @param {Root} blk */
     includePush(blk) {
         this.includes.push(blk);
     }
     
-    /** @return {Root} @deprecated */
+    /** @return {Root} */
     includePop() {
         return this.includes.pop();
     }
@@ -1489,7 +1522,7 @@ export class Scope {
      * @param {boolean?} raw 
      */
     
-    async IncludePreCache(input, raw = false) {
+    async IncludePreCache(input, raw = false, ref = null) {
         let lowerpath;
         let fpath;
         let code;
@@ -1497,6 +1530,10 @@ export class Scope {
         if (raw) {
             lowerpath = `stdin_{${randomUUID()}}`;
             code = input;
+            
+            if (ref) {
+                ref = ref.return = lowerpath;
+            }
         } else {
             lowerpath = input.toLowerCase();
             fpath = input;
@@ -1512,7 +1549,7 @@ export class Scope {
             return this.includePreCache[lowerpath];
         }
         
-        this.includePreCache[lowerpath] = await (async () => {
+        this.includePreCache[lowerpath] = [await (async () => {
             let release;
             
             if (this.oneByOneInclude) {
@@ -1529,17 +1566,17 @@ export class Scope {
                 if (release)
                     release();
             }
-        })();
+        })(), lowerpath];
         
         return lowerpath;
     }
     
     /**
      * @param {string} fpath
-     * @return {Root}
+     * @return {Promise<Root>}
      */
     
-    IncludeToBlock(fpath) {
+    async IncludeToBlock(fpath) {
         fpath = fpath.toLowerCase();
         
         if (!this.parser) throw new Error('ParserNotFound');
@@ -1558,11 +1595,17 @@ export class Scope {
         }
         
         let saveAnnos = this.annotationsPop();
-            this.includeCache[fpath] = (() => {
+            this.includeCache[fpath] = await (async () => {
                 this.filename.push(fpath);
-                for (let node of travel([this.includePreCache[fpath]], this)) {
+                for (let node of travel([this.includePreCache[fpath][0]], this)) {
                     if (node instanceof Promise) {
-                        throw new Error('so far this shouldn\'t be happening.');
+                        let ret = await node;
+                        
+                        if (ret && ret instanceof Root) {
+                            this.includePush(ret);
+                        }
+                        
+                        // throw new Error('so far this shouldn\'t be happening.');
                     }
                     
                     if (node instanceof Root) {
@@ -1572,7 +1615,6 @@ export class Scope {
                 this.filename.pop();
             })();
         this.annotationsPushAll(saveAnnos);
-        
         this.includeCycle[fpath] = false;
         return this.includeCache[fpath];
     }
@@ -1662,7 +1704,7 @@ export class Scope {
         // for (let word of words) {
         //     out += `@${word.toLowerCase()} @${word.toUpperCase()} @${word.toUpperCase()[0] + word.toLowerCase().slice(1)}\n`
         // }
-        // console.log(out);
+        // // // console.log(out);
         
         for (let matched of content.matchAll(this.annoRegex)) {
             let cap = {};
@@ -1733,12 +1775,12 @@ export class Scope {
                     
                     this.enumReverse[enumName] = revals;
                     
-                    for (let arg of cap.eval.matchAll(/\s*([^,=\s]+)\s*(?:=([^,]+))?(?:,)?(?:#.+?\n)?/gm)) {
+                    for (let arg of cap.eval.matchAll(/\s*([^,=\s]+)\s*(?:=([^,]+))?(?:,)?(?:\s*#.+?\n)?/gm)) {
                         let ename = arg[1];
                         let ival = arg[2] ?? (counter++).toString();
                         let fullEName = `${enumName}${ename}`;
                         
-                        this.defines[fullEName] = ival;
+                        this.defines[fullEName] = [ival];
                         
                         evals[ename] = ival;
                         revals[ival] = fullEName;
@@ -2129,9 +2171,9 @@ function *travel(node, scope, depth = 0) {
                 for (let node of travel(childNodes, scope, depth)){
                     scope.EnteredNode(node);
                     switch(true) {
-                        case node instanceof LexemText: yield new LexemFuncName({ value: node.text }); break;
-                        case node instanceof Delimiter: yield node;                                    break;
-                        case node instanceof Promise:   yield node;                                    break;
+                        case node instanceof LexemText: yield new LexemFuncName({ value: node.text, line: node.line }); break;
+                        case node instanceof Delimiter: yield node;                                                     break;
+                        case node instanceof Promise:   yield node;                                                     break;
                         default: throw new UnexpectedToken(node);
                     }
                     scope.LeaveNode(node);
@@ -2387,6 +2429,7 @@ function *travel(node, scope, depth = 0) {
                 break;
                 
             case 't_call':
+                let t_call_line = null;
                 let callee = null;
                 let t_call_args = null;
                 let t_call_define = false;
@@ -2396,6 +2439,7 @@ function *travel(node, scope, depth = 0) {
                     switch(true) {
                         case node instanceof LexemFuncName:
                             callee = node.value;
+                            t_call_line = node.line;
                             
                             if (scope.defines[callee] || scope.fdefine[callee]) {
                                 scope.isinsidedefine++;
@@ -2426,6 +2470,7 @@ function *travel(node, scope, depth = 0) {
                     callee,
                     arguments: t_call_args,
                     method: false,
+                    line: t_call_line,
                     ...(t_call_define ? { return: scope.void } : (scope.getFunction(callee, t_call_args, scope.exps().length ? scope.exps()[scope.exps().length - 1].return : null))),
                 });
                 
@@ -2937,7 +2982,7 @@ function *travel(node, scope, depth = 0) {
                             yield node;
                             break;
                         case node instanceof Delimiter:  t_assign_late.push(node); break;
-                        case node instanceof Promise:    t_assign_late.push(node); break;
+                        case node instanceof Promise:    yield node; break; // TODO: may be break {t_assign_late.push(node);}
                         default: throw new UnexpectedToken(node);
                     }
                     scope.LeaveNode(node);
@@ -2985,18 +3030,25 @@ function *travel(node, scope, depth = 0) {
                 //     }
                 // }
                 
+                let notPushScope = false;
+                
+                if (scope.nextNotPushScope) {
+                    notPushScope = true;
+                    scope.nextNotPushScope = false;
+                }
+                
                 scope.prestmt.push(stmts);
                 
                 function *include(node) {
                     let annos = scope.annotationsPop();
-                    // yield scope.IncludeToBlock(node.path); // await Promise, throw level [after root], in Scope.includePop - tree include [root -> block]
+                    yield scope.IncludeToBlock(node.path); // await Promise, throw level [after root], in Scope.includePop - tree include [root -> block]
                     
                     stmts.push(
                         new Include({
                             pref: scope.includepref,
                             annotations: annos,
                             path: node.import,
-                            body: scope.IncludeToBlock(node.path), // now it's a synchronous operation //scope.includePop(),
+                            body: scope.includePop(), // scope.IncludeToBlock(node.path), // now it's a synchronous operation //scope.includePop(),
                             ...scope.getOP('include', []),
                         }),
                     );
@@ -3004,7 +3056,8 @@ function *travel(node, scope, depth = 0) {
                     if (late.length) { stmts = stmts.concat(late); late = []; }
                 }
                 
-                scope.push();
+                if (!notPushScope)
+                    scope.push();
                 for (let node of scope.lateStmtPopAll()) { // include from directive, hack, latter init
                     scope.EnteredNode(node);
                     switch(true) {
@@ -3100,7 +3153,8 @@ function *travel(node, scope, depth = 0) {
                     }
                     scope.LeaveNode(node);
                 }
-                scope.pop();
+                if (!notPushScope)
+                    scope.pop();
                 
                 if (late.length) { stmts = stmts.concat(late); late = []; }
                 
@@ -3513,6 +3567,12 @@ function *travel(node, scope, depth = 0) {
                     if (define) {
                         let annos = annotations.concat(node.annotations);
                         let ldef = null;
+                        let setCurrLine = !scope.defineLine;
+                        
+                        scope.recurseCount[define] = scope.recurseCount[define] ?? 0;
+                        
+                        if(scope.recurseCount[define]++ >= 10)
+                            throw new Error(`Spent the entire stack on calls to define "${define}"`);
                         
                         if (dargs) {
                             ldef = {};
@@ -3525,15 +3585,53 @@ function *travel(node, scope, depth = 0) {
                                 scope.defines[dargs[i]] = [partCompile(args[i], scope.e2data, { pretty: false }), []];
                             }
                         }
+                        let ref = {};
                         
-                        let last_indefine = scope.isinsidedefine;
-                        let last_stmt_flas = scope.flag_laststmt;
+                        function fastFindLiteral(text) {
+                            if (/^\d+$/.test(text)) {
+                                return new Literal({
+                                    value: text,
+                                    isstring: false,
+                                    return: scope.number,
+                                });
+                            } else if (/^"[^"]+"$/.test(text)) {
+                                return new Literal({
+                                    value: text.slice(1).slice(0, -1),
+                                    isstring: true,
+                                    return: scope.string,
+                                });
+                            }
+                        }
                         
-                        scope.isinsidedefine = 0;
-                        let stmts = scope.BlockFromRaw(define).block.statements;
+                        let fastLiteral = fastFindLiteral(define);
+                        let stmts;
                         
-                        scope.flag_laststmt = last_stmt_flas;
-                        scope.isinsidedefine = last_indefine;
+                        if (!fastLiteral) {
+                            yield scope.IncludePreCache(define, true, ref);
+                            
+                            let last_indefine = scope.isinsidedefine;
+                            let last_stmt_flas = scope.flag_laststmt;
+                            
+                            if (setCurrLine)
+                                scope.defineLine = node.line ?? -1;
+                            
+                            scope.nextNotPushScope = true;
+                            scope.isinsidedefine = 0;
+                            // let stmts = scope.BlockFromRaw(define).block.statements;
+                            yield scope.IncludeToBlock(ref.return);
+                            stmts = scope.includePop().block.statements;
+                            
+                            scope.nextNotPushScope = false;
+                            scope.flag_laststmt = last_stmt_flas;
+                            scope.isinsidedefine = last_indefine;
+                        
+                            if (setCurrLine)
+                                scope.defineLine = null;
+                        } else {
+                            stmts = [fastLiteral];
+                        }
+                        
+                        scope.recurseCount[define]--;
                         
                         if (scope.flag_laststmt == depth - 1 || scope.isinsidedefine) {
                             for (let stmt of stmts) {
@@ -3948,6 +4046,8 @@ async function preProccess(node, scope) {
     __FUNC__
 */
 
+// TODO: показывать на какой строке ошибка
+
 /**
  * @param {string | NodeJS.ReadStream} input
  * @param {E2Data} e2data
@@ -3968,6 +4068,6 @@ export default async function(input, e2data, parser) {
     return new Include({
         pref: scope.includepref,
         path: raw ? include_name : path.parse(input).name,
-        body: scope.IncludeToBlock(include_name),
+        body: await scope.IncludeToBlock(include_name),
     });
 };

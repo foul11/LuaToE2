@@ -466,10 +466,14 @@ function *it_Include(node, scope) {
                 scope.pushBuffer(value);
             }
         } else {
+            let tab_depth = scope.tab_depth;
+            
+            scope.tab_depth = 0;
             scope.pushBufferStack();
                 for (let value of Iterate(node.body, scope))
                     scope.pushBuffer(value);
             scope.output[node.path] = scope.bufferToString();
+            scope.tab_depth = tab_depth;
             
             scope.pushBufferTab(sub);
             scope.pushBuffer('#include');

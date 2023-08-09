@@ -248,7 +248,7 @@ expr16 : C_lbkt dmtr? expr1 dmtr? C_rbkt | t_call | expr17 ;
 expr17 : t_const | C_tilt VAR | C_delta VAR | C_inputs VAR | expr18 ;
 // expr18 : (VAR ~(C_inc | C_dec) | ~VAR .) dmtr? expr19;
 expr18 : expr19 ;
-expr19 : VAR | LITERAL;
+expr19 : VAR | CONSTANT ;
 
 // Expr1 : ((Var '=') | (Var '+=') | (Var '-=') | (Var '*=') | (Var '/=')) Expr2;
 // Expr2 : Expr3 (('?' Expr1 ':' Expr1) | ('?:' Expr1))?;

@@ -57,7 +57,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\index.js",
-            "args": ["build", "-wp", "--incdir", "e2s", "../input.txt", "out.txt", "--grammar"],
+            "args": ["build", "-wp", "--incdir", "e2s", "../input.txt", "out", "--grammar"],
             "outputCapture": "std",
         },
         {
