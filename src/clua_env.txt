@@ -2,46 +2,43 @@
 
 if(first()){
 	function table table:clua_print(Args:table){
-		#[@debug]#
-		if(This["_class",string] != "clua_instance"){
-			error("clua_* not run e2func ThisClass not clua_instance: " + This["_class",string])
-		}
+		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
 		
 		local Print = ""
 		
 		foreach(K:number, Variable:table = Args){
-			local Type = Variable["Type",string]
+			local Type = Variable["Type",number]
 			
 			switch(Type){
-				case "userdata",
+				case _LUA_TYPE_USERDATA,
 					Print = Print + format("userdata %p", Variable["Value",table]) + "\t"
 					break
 					
-				case "function",
+				case _LUA_TYPE_FUNCTION,
 					Print = Print + format("function %p", Variable["Value",table]) + "\t"
 					break
 					
-				case "boolean",
+				case _LUA_TYPE_BOOLEAN,
 					Print = Print + (Variable["Value",number] ? "true" : "false") + "\t"
 					break
 					
-				case "string",
+				case _LUA_TYPE_STRING,
 					Print = Print + Variable["Value",string] + "\t"
 					break
 					
-				case "number",
+				case _LUA_TYPE_NUMBER,
 					Print = Print + Variable["Value",number] + "\t"
 					break
 					
-				case "thread",
+				case _LUA_TYPE_THREAD,
 					Print = Print + format("thread %p", Variable["Value",table]) + "\t"
 					break
 					
-				case "table",
+				case _LUA_TYPE_TABLE,
 					Print = Print + format("table %p", Variable["Value",table]) + "\t"
 					break
 					
-				case "nil",
+				case _LUA_TYPE_NIL,
 					Print = Print + "nil" + "\t"
 					break
 				

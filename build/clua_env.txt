@@ -1,46 +1,46 @@
 @name CLua_env
 
 ALWAYS_TRUE = 1
-    if(first()){
-        function table table:clua_print(Args:table){
-            if(This["_class",string] != "clua_instance"){
-                error("clua_* not run e2func ThisClass not clua_instance: " + This["_class",string])
-            }
-            local Print = ""
-            
-            foreach(K:number, Variable:table = Args){
-                local Type = Variable["Type",string]
-                
-                switch(Type){
-                    case "userdata",
-                        Print = Print + format("userdata %p", Variable["Value",table]) + "\t"
-                        break
-                    case "function",
-                        Print = Print + format("function %p", Variable["Value",table]) + "\t"
-                        break
-                    case "boolean",
-                        Print = Print + (Variable["Value",number] ? "true" : "false") + "\t"
-                        break
-                    case "string",
-                        Print = Print + Variable["Value",string] + "\t"
-                        break
-                    case "number",
-                        Print = Print + Variable["Value",number] + "\t"
-                        break
-                    case "thread",
-                        Print = Print + format("thread %p", Variable["Value",table]) + "\t"
-                        break
-                    case "table",
-                        Print = Print + format("table %p", Variable["Value",table]) + "\t"
-                        break
-                    case "nil",
-                        Print = Print + "nil" + "\t"
-                        break
-                    default,
-                        error("clua_print var type not found: " + Type)
-                }
-            }
-            print(Print)
-            return table()
+if(first()){
+    function table table:clua_print(Args:table){
+        if(!(This["_class",number] == 1)){
+            error("clua_print" + " " + "not run e2func ThisClass not clua_instance: " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 5)
         }
+        local Print = ""
+        
+        foreach(K:number, Variable:table = Args){
+            local Type = Variable["Type",number]
+            
+            switch(Type){
+                case 1,
+                    Print = Print + format("userdata %p", Variable["Value",table]) + "\t"
+                    break
+                case 2,
+                    Print = Print + format("function %p", Variable["Value",table]) + "\t"
+                    break
+                case 3,
+                    Print = Print + (Variable["Value",number] ? "true" : "false") + "\t"
+                    break
+                case 4,
+                    Print = Print + Variable["Value",string] + "\t"
+                    break
+                case 5,
+                    Print = Print + Variable["Value",number] + "\t"
+                    break
+                case 6,
+                    Print = Print + format("thread %p", Variable["Value",table]) + "\t"
+                    break
+                case 7,
+                    Print = Print + format("table %p", Variable["Value",table]) + "\t"
+                    break
+                case 8,
+                    Print = Print + "nil" + "\t"
+                    break
+                default,
+                    error("clua_print var type not found: " + Type)
+            }
+        }
+        print(Print)
+        return table()
     }
+}

@@ -19,15 +19,75 @@ local F = string.format
 -- file:close()
 
 local _LUA_TYPES = {
-		USERDATA = 1,
-		FUNCTION = 2,
-		BOOBLEAN = 3,
-		STRING   = 4,
-		NUMBER   = 5,
-		THREAD   = 6,
-		TABLE    = 7,
-		NIL      = 8,
-	}
+	USERDATA = 1,
+	FUNCTION = 2,
+	BOOLEAN  = 3,
+	STRING   = 4,
+	NUMBER   = 5,
+	THREAD   = 6,
+	TABLE    = 7,
+	NIL      = 8,
+}
+
+local _CLUA_INST = {
+	EXT_CALL    = 1 , -- statments
+	CALL        = 2 ,
+	DECLARATION = 3 ,
+	ASSIGMENT   = 4 ,
+	CONTINUE    = 5 , -- GLUA
+	BREAK       = 6 ,
+	RETURN      = 7 ,
+	LABEL       = 8 ,
+	GOTO        = 9 ,
+	BLOCK       = 10,
+	IF          = 11,
+	FOR         = 12,
+	WHILE       = 13,
+	REPEAT      = 14,
+	
+	IDENTIFIER  = 15, -- expression
+	VARARG      = 16,
+	LITERAL     = 17,
+	TABLE       = 18,
+	LOOKUP      = 19,
+	UNARY       = 20,
+	BINARY      = 21,
+	FUNCTION    = 22,
+	
+	CTX         = 23, -- for internal
+}
+
+local _CLUA_BINARY = {
+	["+"]   = 1 , --#ADD     +
+	["-"]   = 2 , --#SUB     -
+	["*"]   = 3 , --#MUL     *
+	["/"]   = 4 , --#DIV     /
+	["^"]   = 5 , --#	     ^  - skip
+	["//"]  = 6 , --#	     // - skip
+	["%"]   = 7 , --#MOD     %
+	["&"]   = 8 , --#	     &  - skip
+	["~"]   = 9 , --#	     ~  - skip
+	["|"]   = 10, --#	     |  - skip
+	[">>"]  = 11, --#	     >> - skip
+	["<<"]  = 12, --#	     << - skip
+	[".."]  = 13, --#CNC     ..
+	["<"]   = 14, --#LS      <
+	[">"]   = 15, --#GR      >
+	["<="]  = 16, --#EQLS    <=
+	[">="]  = 17, --#EQGR    >=
+	["=="]  = 18, --#EQ      ==
+	["~="]  = 19, --#NEQ     ~=
+	["and"] = 20, --#AND     and
+	["or"]  = 21, --#OR      or
+}
+
+local _CLUA_UNARY = {
+	['-']   = 1, --#NEG    -
+	['not'] = 2, --#NOT    not
+	['!']   = 2, --#NOT    ! - glua
+	['#']   = 3, --#SHP    #
+	['~']   = 4, --#       ~ - skip
+}
 
 local code = io.read('*a')
 
@@ -49,36 +109,50 @@ local function isnil(val)
 	return type(val) == "nil"
 end
 
+local buff = table.insert
+
 local function _compileE2_Expressions(ast)
 	local Ret = {}
 	local Type = ast.type
 	
-	table.insert(Ret, F('table("_Type" = "%s", ', Type))
+	buff(Ret, F('table("_Type" = %s, ', _CLUA_INST[Type:upper()]))
 		if Type == 'literal' then
 			if isnumber(ast.value) then
-				table.insert(Ret, '1 = ')
-				table.insert(Ret, F('%q', _LUA_TYPES[type(ast.value):upper()]))
-				table.insert(Ret, ', 2 = ')
-				table.insert(Ret, ast.value)
+				buff(Ret, F('1 = '))
+				buff(Ret, F('%s', _LUA_TYPES[type(ast.value):upper()]))
+				buff(Ret, F(', 2 = '))
+				buff(Ret, ast.value)
 			elseif isstring(ast.value) then
-				table.insert(Ret, '1 = ')
-				table.insert(Ret, F('%q', _LUA_TYPES[type(ast.value):upper()]))
-				table.insert(Ret, ', 2 = ')
-				table.insert(Ret, F("%q", ast.value))
+				buff(Ret, F('1 = '))
+				buff(Ret, F('%s', _LUA_TYPES[type(ast.value):upper()]))
+				buff(Ret, F(', 2 = '))
+				buff(Ret, F("%q", ast.value))
 			elseif isboolean(ast.value) then
-				table.insert(Ret, '1 = ')
-				table.insert(Ret, F('%q', _LUA_TYPES[type(ast.value):upper()]))
-				table.insert(Ret, ', 2 = ')
-				table.insert(Ret, ast.value and '1' or '0')
+				buff(Ret, F('1 = '))
+				buff(Ret, F('%s', _LUA_TYPES[type(ast.value):upper()]))
+				buff(Ret, F(', 2 = '))
+				buff(Ret, ast.value and '1' or '0')
 			elseif isnil(ast.value) then
-				table.insert(Ret, '1 = ')
-				table.insert(Ret, F('%s', _LUA_TYPES[type(ast.value):upper()]))
+				buff(Ret, F('1 = '))
+				buff(Ret, F('%s', _LUA_TYPES[type(ast.value):upper()]))
 			end
 		elseif Type == 'identifier' then
-			table.insert(Ret, '1 = ')
-			table.insert(Ret, F("%q", ast.name))
+			buff(Ret, F('1 = '))
+			buff(Ret, F("%q", ast.name))
+		elseif Type == 'binary' then
+			buff(Ret, '1 = ')
+			buff(Ret, _CLUA_BINARY[ast.operator])
+			buff(Ret, ', 2 = ')
+			buff(Ret, _compileE2_Expressions(ast.left))
+			buff(Ret, ', 3 = ')
+			buff(Ret, _compileE2_Expressions(ast.right))
+		elseif Type == 'unary' then
+			buff(Ret, '1 = ')
+			buff(Ret, _CLUA_UNARY[ast.operator])
+			buff(Ret, ', 2 = ')
+			buff(Ret, _compileE2_Expressions(ast.expression))
 		end
-	table.insert(Ret, ')')
+	buff(Ret, ')')
 	
 	return table.concat(Ret, '')
 end
@@ -87,35 +161,35 @@ local function _compileE2_Statements(ast)
 	local Ret = {}
 	local Type = ast.type
 	
-	table.insert(Ret, F('table("_Type" = "%s", ', Type))
+	buff(Ret, F('table("_Type" = %s, ', _CLUA_INST[Type:upper()]))
 		if Type == 'block' then
 			local Count = #ast.statements
 			
 			for k,v in ipairs(ast.statements) do
-				table.insert(Ret, F('%s = ', k))
-				table.insert(Ret, _compileE2_Statements(v))
+				buff(Ret, F('%s = ', k))
+				buff(Ret, _compileE2_Statements(v))
 				
 				if k ~= Count then
-					table.insert(Ret, ', ')
+					buff(Ret, ', ')
 				end
 			end
 		elseif Type == 'call' then
-			table.insert(Ret, '1 = ')
-			table.insert(Ret, _compileE2_Expressions(ast.callee))
-			table.insert(Ret, ', 2 = table(')
+			buff(Ret, '1 = ')
+			buff(Ret, _compileE2_Expressions(ast.callee))
+			buff(Ret, ', 2 = table(')
 				local Count = #ast.arguments
 				
 				for k,v in ipairs(ast.arguments) do
-					table.insert(Ret, F('%s = ', k))
-					table.insert(Ret, _compileE2_Expressions(v))
+					buff(Ret, F('%s = ', k))
+					buff(Ret, _compileE2_Expressions(v))
 					
 					if k ~= Count then
-						table.insert(Ret, ', ')
+						buff(Ret, ', ')
 					end
 				end
-			table.insert(Ret, ')')
+			buff(Ret, ')')
 		end
-	table.insert(Ret, ')')
+	buff(Ret, ')')
 	
 	return table.concat(Ret, '')
 end
