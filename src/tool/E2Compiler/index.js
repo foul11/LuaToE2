@@ -166,41 +166,43 @@ const yarg = yargs(hideBin(process.argv))
 			describe: 'output file',
 		})
 	}, async (argv) => {
-		await new Promise(async (resolve) => {
-			const output = /** @type {string} */ (argv.out);
-			const input = /** @type {string} */ (argv.in);
-				
-			let wdir = process.cwd();
-			process.chdir(path.join(__dirname, '../clua/'));
-				const compiler = spawn(
-					'lua',
-					[ 'compiler.lua' ]
-				);
-			process.chdir(wdir);
+		const output = /** @type {string} */ (argv.out);
+		const input = /** @type {string} */ (argv.in);
 			
-			compiler.stderr.on('data', (buff) => {
-				process.stderr.write(buff.toString());
-			});
-			
-			compiler.on('exit', resolve);
-			
-			await new Promise((resolve, reject) => {
-				compiler.on('spawn', resolve);
-				compiler.on('error', reject);
-			});
-			
-			compiler.stdin.end(
-				await readAll(input == 'stdin' ?  process.stdin : fs.createReadStream(input))
+		let wdir = process.cwd();
+		process.chdir(path.join(__dirname, '../clua/'));
+			const compiler = spawn(
+				'lua',
+				[ 'compiler.lua' ]
 			);
-			
-			let content = await readAll(compiler.stdout);
-			
-			if (output != 'stdout') {
-				fs.writeFileSync(output, content)
-			} else {
-				process.stdout.write(content);
-			}
+		process.chdir(wdir);
+		
+		compiler.stderr.on('data', (buff) => {
+			process.stderr.write(buff.toString());
 		});
+		
+		await new Promise((resolve, reject) => {
+			compiler.on('spawn', resolve);
+			compiler.on('error', reject);
+		});
+		
+		let exit = new Promise(async (resolve) => {
+			compiler.on('exit', resolve);
+		});
+		
+		compiler.stdin.end(
+			await readAll(input == 'stdin' ?  process.stdin : fs.createReadStream(input))
+		);
+		
+		let content = await readAll(compiler.stdout);
+		
+		if (output != 'stdout') {
+			fs.writeFileSync(output, content)
+		} else {
+			process.stdout.write(content);
+		}
+		
+		process.stdout.write(`proccess out code: ${await exit}`);
 	})
 	.command('generate', 'Build grammars', () => {}, async () => {
 		try {

@@ -8,7 +8,7 @@ export async function readAll(input) {
     for await (let chunk of input)
         chunks.push(chunk);
         
-    return chunks.join();
+    return chunks.join('');
 }
 
 export function* traverseDir(dirPath) {
