@@ -1,10 +1,16 @@
 @name CLua_env
 
 ALWAYS_TRUE = 1
+if(0){
+    function table table:cluaNewVar(Type){
+
+    }
+}
+
 if(first()){
     function table table:clua_print(Args:table){
         if(!(This["_class",number] == 1)){
-            error("clua_print" + " " + "not run e2func ThisClass not clua_instance: " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 5)
+            error("clua_print" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 7)
         }
         local Print = ""
         
@@ -42,5 +48,14 @@ if(first()){
         }
         print(Print)
         return table()
+    }
+    
+    function table table:clua_printTable(Args:table){
+        if(!(This["_class",number] == 1)){
+            error("clua_printTable" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 57)
+        }
+        print("printTable:")
+        printTable(Args[1,table])
+        return table(This:cluaNewVar(7))
     }
 }

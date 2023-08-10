@@ -1,5 +1,7 @@
 @name CLua_env
 
+if(0){ function table table:cluaNewVar(Type){} }
+
 if(first()){
 	function table table:clua_print(Args:table){
 		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
@@ -49,5 +51,14 @@ if(first()){
 		print(Print)
 		
 		return table()
+	}
+	
+	function table table:clua_printTable(Args:table){
+		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
+		
+		print("printTable:")
+		printTable(Args[1,table])
+		
+		return table(This:cluaNewVar(_LUA_TYPE_TABLE))
 	}
 }

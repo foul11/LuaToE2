@@ -1,0 +1,5 @@
+PrintTable({1,2,3})
+PrintTable({[1]=1,2,[2]=3})
+PrintTable({["hhee"] = "oool", 3,1})
+PrintTable({})
+PrintTable(not {})

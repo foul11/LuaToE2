@@ -26,20 +26,20 @@
 		
 		
 	@define _assertClass(TABLE, MSG, TYPE) \
-		_assert(TABLE["_class",number] == TYPE, MSG + __ENUM__("_CLUA_TYPE_", TYPE) + "[got " + TABLE["_class",number] + "]")
+		_assert(TABLE["_class",number] == TYPE, MSG + " " + __ENUM__("_CLUA_TYPE_", TYPE) + "[got " + TABLE["_class",number] + "]")
 		
 	@define _assertSubClass(TABLE, MSG, TYPE) \
-		_assert(TABLE["_classsub",number] == TYPE, MSG+ __ENUM__("_CLUA_TYPE_", TYPE) + "[got " + TABLE["_classsub",number] + "]")
+		_assert(TABLE["_classsub",number] == TYPE, MSG + " " + __ENUM__("_CLUA_TYPE_", TYPE) + "[got " + TABLE["_classsub",number] + "]")
 		
 	@define _assertType(TABLE, MSG, TYPE) \
 		_assert(TABLE["_Type",number] == TYPE, MSG)
 		
 		
 	@define _assertNClass(TABLE, MSG, TYPE) \
-		_assert(TABLE["_class",number] != TYPE, MSG + __ENUM__("_CLUA_TYPE_", TYPE) + "[got " + TABLE["_class",number] + "]")
+		_assert(TABLE["_class",number] != TYPE, MSG + " " + __ENUM__("_CLUA_TYPE_", TYPE) + "[got " + TABLE["_class",number] + "]")
 		
 	@define _assertNSubClass(TABLE, MSG, TYPE) \
-		_assert(TABLE["_classsub",number] != TYPE, MSG+ __ENUM__("_CLUA_TYPE_", TYPE) + "[got " + TABLE["_classsub",number] + "]")
+		_assert(TABLE["_classsub",number] != TYPE, MSG + " " + __ENUM__("_CLUA_TYPE_", TYPE) + "[got " + TABLE["_classsub",number] + "]")
 		
 	@define _assertNType(TABLE, MSG, TYPE) \
 		_assert(TABLE["_Type",number] != TYPE, MSG)
@@ -138,10 +138,6 @@
 ]#
 
 if(first()){
-	##@inline
-	#@ipref lua/
-	#include "clua_env"
-	
 	function table table:cluaNewVar(Type){
 		_debug(_assertClass(This, "can't use to", _CLUA_TYPE_INSTANCE))
 		
@@ -224,11 +220,11 @@ if(first()){
 		return This
 	}
 	
-	
 	function table table:cluaBuildEnv(){
 		_debug(_assertClass(This, "can't use to", _CLUA_TYPE_INSTANCE))
 		
 		This["Vars",table] = table(
+			"PrintTable" = This:cluaMakeExtFunc("printTable"),
 			"print" = This:cluaMakeExtFunc("print")
 		)
 		
@@ -257,17 +253,17 @@ if(first()){
 		)
 	}
 	
-	function table table:cluaSCOPEpushLastScopeInScope(Scope:table){
-		_debug(_assertClass(This, "can't use to:", _CLUA_TYPE_SCOPES))
-		_debug(_assertNSubClass(This, "the function can only be used inside the scope context:", _CLUA_TYPE_SCOPES_IN_SCOPE))
+	#[ function table table:cluaSCOPEpushLastScopeInScope(Scope:table){ ]#
+		#[ _debug(_assertClass(This, "can't use to:", _CLUA_TYPE_SCOPES)) ]#
+		#[ _debug(_assertNSubClass(This, "the function can only be used inside the scope context:", _CLUA_TYPE_SCOPES_IN_SCOPE)) ]#
 		
-		local LScope = This[This:ncount(),table]
-		LScope["Scopes",table]:pushTable(Scope)
+		#[ local LScope = This[This:ncount(),table] ]#
+		#[ LScope["Scopes",table]:pushTable(Scope) ]#
 		
-		return This
-	}
+		#[ return This ]#
+	#[ } ]#
 	
-	function table table:cluaSCOPEpush(Code:table){
+	function table table:cluaSCOPEpush(Code:table, IndexReturn){
 		_debug(_assertClass(This, "can't use to:", _CLUA_TYPE_SCOPES))
 		_debug(_assert(Code["_Type",number], "Statment type is null"))
 		
@@ -284,22 +280,19 @@ if(first()){
 			),
 			"Return" = table(), #тут значения которые вернул скоп
 			"Instruction" = 1,  #счетчик выполнения скопа
+			"CurrVar" = table(),#переменная в которую записываем результаты
+			"IndexReturn" = IndexReturn,  #На сколько идексов отмотать стек что бы записать скоп в scopes
 			"_class" = _CLUA_TYPE_SCOPE
 		))
 		
 		return This
 	}
 	
-	function table table:cluaSCOPEpop(){ #Умертвляет скоп и возращает его
+	function table table:cluaSCOPEpop(){ #Умертвляет последний скоп из хранилища скопов и возращает его
 		_debug(_assertClass(This, "can't use to:", _CLUA_TYPE_SCOPES))
+		_debug(_assert(This:ncount(), "Scopes count is 0"))
 		
-		local Contexts = This["Contexts",table]
-		local Context = Contexts[Contexts:ncount(),table]
-		local DeadScope = This:popTable()
-		
-		Context["DeadScope",table] = DeadScope
-		
-		return DeadScope
+		return This:popTable()
 	}
 	
 	function table table:cluaCreateFuncContext(){
@@ -312,7 +305,7 @@ if(first()){
 		local Ctx = table(
 			"Scopes" = table(
 				"_class" = _CLUA_TYPE_SCOPES
-			):cluaSCOPEpush(This["Code",table]),
+			):cluaSCOPEpush(This["Code",table], 1),
 			"Instance" = This["Instance",table],
 			"Func" = This,
 			"IsComplete" = 0,
@@ -321,7 +314,7 @@ if(first()){
 			"Contexts" = table(
 				"_class" = _CLUA_TYPE_CONTEXTS
 			),
-			"DeadScope" = table(),
+			"DeadContext" = table(),
 			"_class" = _CLUA_TYPE_CONTEXT
 		)
 		
@@ -330,31 +323,36 @@ if(first()){
 		return Ctx
 	}
 	
-	function table table:cluaSCOPEpushReturn(Ret:table){
-		_debug(_assertClass(Ret, "can't use to:", _CLUA_TYPE_VARIABLE))
+	function table table:cluaCTXPushReturn(Ret:table, Multipe){
+		_debug(_assertClass(This, "can't use to:", _CLUA_TYPE_CONTEXTS))
 		
-		local LScope = This[This:ncount(),table]
+		local CtxCount = This:ncount()                    _debug(_assert(CtxCount, "Ctxs count is 0"))
+		local LCtx = This[CtxCount,table]                 _debug(_assertClass(LCtx, "LCtx", _CLUA_TYPE_CONTEXT))
+		local Scopes = LCtx["Scopes",table]               _debug(_assertClass(Scopes, "Scopes", _CLUA_TYPE_SCOPES))
 		
-		LScope["Return",table]:pushTable(Ret)
-		This:cluaSCOPEpushLastScopeInScope(
-			This:cluaSCOPEpop()
-		)
+		local ScopesCount = Scopes:ncount()
+		local LScope =  Scopes[ScopesCount,table]         _debug(_assertClass(LScope,  "LScope not scope", _CLUA_TYPE_SCOPE))
 		
-		return This
-	}
-	
-	function table table:cluaSCOPEpushReturns(Rets:table){
-		#[@debug]#
-		foreach(K:number, T:table = Rets){
-			_debug(_assertClass(T, "can't use to:", _CLUA_TYPE_VARIABLE))
+		if(Multipe){
+			#[@debug]#
+			foreach(K:number, T:table = Ret){
+				_debug(_assertClass(T, "can't use to:", _CLUA_TYPE_VARIABLE))
+			}
+			
+			LScope["Return",table] = Ret
+		}else{
+			_debug(_assertClass(Ret, "can't use to:", _CLUA_TYPE_VARIABLE))
+			LScope["Return",table]:pushTable(Ret)
 		}
 		
-		local LScope = This[This:ncount(),table]
 		
-		LScope["Return",table] = Rets
-		This:cluaSCOPEpushLastScopeInScope(
-			This:cluaSCOPEpop()
-		)
+		if(ScopesCount == 1){
+			LCtx["Return",table] = LScope["Return",table]
+		}else{
+			local LLScope = Scopes[ScopesCount - LScope["IndexReturn",number],table] _debug(_assertClass(LLScope, "LLScope not scope", _CLUA_TYPE_SCOPE))
+			
+			LLScope["Scopes",table]:pushTable(Scopes:cluaSCOPEpop())
+		}
 		
 		return This
 	}
@@ -377,6 +375,28 @@ if(first()){
 		
 	@define _VarType(VAR) \
 		VAR["Type",number]
+		
+	@define _VarPointer(VAR, TYPE) \
+		(TYPE == _LUA_TYPE_BOOLEAN) ? (VAR["Value",number]+"") : \
+			(TYPE == _LUA_TYPE_STRING ? VAR["Value",string] : format("%p", VAR["Value",table]))
+		
+	@define _TblSet(TABLE, KEY, VALUE) \
+		local KeyT = _VarType(KEY) \
+		if(KeyT == _LUA_TYPE_NUMBER){ \
+			TABLE[ _VarNum(KEY),table] = VALUE \
+		}else{ \
+			local KeyP = _VarPointer(KEY, KeyT) \
+			TABLE[KeyT + _TblDmtr + KeyP,table] = VALUE \
+		}
+		
+	@define _TblGet(RET, TABLE, KEY) \
+		local KeyT = _VarType(KEY) \
+		if(KeyT == _LUA_TYPE_NUMBER){ \
+			RET = TABLE[ _VarNum(KEY),table] \
+		}else{ \
+			local KeyP = _VarPointer(KEY, KeyT) \
+			RET = TABLE[KeyT + _TblDmtr + KeyP,table] \
+		}
 		
 		
 	@define _VarSetStr(VAR, VAL) \
@@ -426,6 +446,10 @@ if(first()){
 		
 	@define _newVarNil \
 		Instance:cluaNewVar(_LUA_TYPE_NIL)
+		
+	
+	@define _TblDmtr \
+		":TYPE-VALUE:"
 	
 	
 	@define _THROW_LUA_ERROR(MSG) \
@@ -462,7 +486,7 @@ if(first()){
 					}
 					
 					local Statment = Code[I,table]
-					Scopes:cluaSCOPEpush(Statment)
+					Scopes:cluaSCOPEpush(Statment, 1)
 					break
 					
 				case _CLUA_INST_CTX, #[ Function in function ]#
@@ -473,18 +497,17 @@ if(first()){
 						break
 					}
 					
-					local DeadContext = LScope["Contexts",table][1,table]
-					local DeadScope = DeadContext["DeadScope",table]
+					local DeadContext = Context["DeadContext",table]
 					
-					Scopes:cluaSCOPEpushReturns(DeadScope["Return",table])
+					Contexts:cluaCTXPushReturn(DeadContext["Return",table], 1)
 					break
 					
-				case _CLUA_INST_EXT_CALL, #[ Call e2 function ]#
+				case _CLUA_INST_EXT_CALL, #[ Call e2 function ]# #[ TODO: rewrite to generator ]#
 					local VarArg = Context["VarArg",table]
 					local E2Func = Code[1,string]
 					
 					local Rets = (E2Func)(Instance, VarArg)[table]
-					Scopes:cluaSCOPEpushReturns(Rets)
+					Contexts:cluaCTXPushReturn(Rets, 1)
 					break
 					
 				case _CLUA_INST_CALL, #TODO: обьявить все не понятные возвраты
@@ -494,10 +517,10 @@ if(first()){
 					
 					if(I >= 1){ #[ Get Args ]#
 						local Statment = Args[I,table]
-						Scopes:cluaSCOPEpush(Statment)
+						Scopes:cluaSCOPEpush(Statment, 1)
 					}elseif(I == 0){ #[ Get Callee ]#
 						local Statment = Code[I + 1,table]
-						Scopes:cluaSCOPEpush(Statment)
+						Scopes:cluaSCOPEpush(Statment, 1)
 					}elseif(I == -1){ #[ Callee ]#
 						local LScopes = LScope["Scopes",table]
 						local LScopesCount = LScopes:ncount()
@@ -556,7 +579,7 @@ if(first()){
 								table(
 									"_Type" = _CLUA_INST_CTX,
 									1 = Callee["NewCtx",table]
-								)
+								), 1
 							)
 						}elseif(CalleeType == _LUA_TYPE_TABLE){
 							error("Not implement (check __call metamethod)") #TODO: 
@@ -582,10 +605,10 @@ if(first()){
 							break
 							
 						case _LUA_TYPE_NIL, break
-						default, error("VarType Type in not defined: " + VarType)
+						default, error("VarType Type is not defined: " + VarType)
 					}
 					
-					Scopes:cluaSCOPEpushReturn(Variable)
+					Contexts:cluaCTXPushReturn(Variable, 0)
 					break
 					
 				case _CLUA_INST_IDENTIFIER,
@@ -613,11 +636,11 @@ if(first()){
 								Variable["NewCtx",table] = Variable["Value",table]:cluaCreateFuncContext()
 							}
 							
-							Scopes:cluaSCOPEpushReturn(Variable)
+							Contexts:cluaCTXPushReturn(Variable, 0)
 						}
 					}else{
-						Scopes:cluaSCOPEpushReturn(
-							Instance:cluaNewVar(_LUA_TYPE_NIL)
+						Contexts:cluaCTXPushReturn(
+							Instance:cluaNewVar(_LUA_TYPE_NIL), 0
 						)
 					}
 					break
@@ -625,15 +648,13 @@ if(first()){
 				case _CLUA_INST_BINARY,
 					if(I == 1){
 						local Left = Code[2,table]
-						
-						Scopes:cluaSCOPEpush(Left)
-					}elseif(I == 2){
 						local Right = Code[3,table]
 						
-						Scopes:cluaSCOPEpush(Right)
+						Scopes:cluaSCOPEpush(Left,  1)
+						Scopes:cluaSCOPEpush(Right, 2)
 					}else{            _LSCOPES
-						local Right = _LSCOPEGetReturn(0, 1)
-						local Left  = _LSCOPEGetReturn(1, 1)
+						local Left  = _LSCOPEGetReturn(0, 1)
+						local Right = _LSCOPEGetReturn(1, 1)
 						local Operator = Code[1,number]
 						local Ret = _newVarNil
 						
@@ -655,8 +676,8 @@ if(first()){
 								
 								case _CLUA_BINARY_LS,   Ret = _newVarBool _VarNumOp(Ret, Left, "<" , Right) break
 								case _CLUA_BINARY_GR,   Ret = _newVarBool _VarNumOp(Ret, Left, ">" , Right) break
-								case _CLUA_BINARY_EQLS, Ret = _newVarBool _VarNumOp(Ret, Left, ">=", Right) break
-								case _CLUA_BINARY_EQGR, Ret = _newVarBool _VarNumOp(Ret, Left, "<=", Right) break
+								case _CLUA_BINARY_EQLS, Ret = _newVarBool _VarNumOp(Ret, Left, "<=", Right) break
+								case _CLUA_BINARY_EQGR, Ret = _newVarBool _VarNumOp(Ret, Left, ">=", Right) break
 								case _CLUA_BINARY_EQ,   Ret = _newVarBool _VarNumOp(Ret, Left, "==", Right) break
 								case _CLUA_BINARY_NEQ,  Ret = _newVarBool _VarNumOp(Ret, Left, "!=", Right) break
 								case _CLUA_BINARY_AND,  Ret = _newVarBool _VarNumOp(Ret, Left, "&" , Right) break
@@ -666,7 +687,7 @@ if(first()){
 							}
 						}
 						
-						Scopes:cluaSCOPEpushReturn(Ret)
+						Contexts:cluaCTXPushReturn(Ret, 0)
 					}
 					break
 					
@@ -674,7 +695,7 @@ if(first()){
 					if(I == 1){
 						local Expr = Code[2,table]
 						
-						Scopes:cluaSCOPEpush(Expr)
+						Scopes:cluaSCOPEpush(Expr, 1)
 					}else{            _LSCOPES
 						local Expr  = _LSCOPEGetReturn(0, 1)
 						local Operator = Code[1,number]
@@ -697,7 +718,7 @@ if(first()){
 								case _CLUA_UNARY_SHP,
 									switch(_VarType(Expr)){
 										case _LUA_TYPE_STRING, Ret = _newVarNum  _VarSetNum(Ret, _VarStr(Expr):length()) break
-										case _LUA_TYPE_TABLE,  Ret = _newVarNum  _VarSetNum(Ret, _VarTbl(Expr):count())  break
+										case _LUA_TYPE_TABLE,  Ret = _newVarNum  _VarSetNum(Ret, _VarTbl(Expr):ncount()) break
 										default, _THROW_LUA_ERROR("operator '#' not apply to" + _VarType(Expr))          break
 									}
 									break
@@ -706,7 +727,61 @@ if(first()){
 							}
 						}
 						
-						Scopes:cluaSCOPEpushReturn(Ret)
+						Contexts:cluaCTXPushReturn(Ret, 0)
+					}
+					break
+					
+				case _CLUA_INST_TABLE,
+					local CurrVar = LScope["CurrVar",table]
+					local Code = Code[1,table]
+					
+					if(I == 1){
+						LScope["CurrVar",table] = _newVarTbl
+					}elseif(I == Code:count() * 2 + 2){
+						Contexts:cluaCTXPushReturn(CurrVar, 0)
+					}elseif(!(I % 2)){
+						local Field = Code[I / 2,table]
+						
+						Scopes:cluaSCOPEpush(Field[2,table], 1) #value
+						
+						if(!Field[3,number]){
+							Scopes:cluaSCOPEpush(Field[1,table], 2) #key
+						}
+					}else{             _LSCOPES
+						local Value  = _LSCOPEGetReturn(0, 1)
+						local Key    = _LSCOPEGetReturn(1, 1)
+						local GenKey = Code[(I-1) / 2,table][3,number]
+						
+						if(GenKey){
+							local Key = CurrVar["_GenKey",number] + 1
+							
+							CurrVar[Key,table] = Value
+							CurrVar["_GenKey",number] = Key
+						}else{
+							_TblSet(CurrVar, Key, Value)
+						}
+					}
+					break
+					
+				case _CLUA_INST_LOOKUP,
+					if(I == 1){
+						local Object = Code[1,table]
+						local Member = Code[2,table]
+						
+						Scopes:cluaSCOPEpush(Object, 1)
+						Scopes:cluaSCOPEpush(Member, 2)
+					}else{              _LSCOPES
+						local Object  = _LSCOPEGetReturn(0, 1)
+						local Member  = _LSCOPEGetReturn(1, 1)
+						local Ret = table()
+						
+						_TblGet(Ret, Object, Member)
+						
+						if(!_VarType(Ret)){
+							Ret = _newVarNil
+						}
+						
+						Contexts:cluaCTXPushReturn(Ret, 0)
 					}
 					break
 					
@@ -716,12 +791,10 @@ if(first()){
 			}
 			
 			if(!Scopes:ncount()){
-				Context["IsComplete",number] = 1
-				LScope["Contexts",table]:pushTable(
-					Contexts:popTable()
-				)
+				Context["DeadContext",table] = Contexts:popTable()
 				
-				if(This["IsComplete",number]){
+				if(!Contexts:ncount()){
+					Context["IsComplete",number] = 1
 					return 1
 				}
 			}
@@ -735,6 +808,10 @@ if(first()){
 	function table table:cluaFuncExecute(){
 		return This:cluaCreateFuncContext()
 	}
+	
+	##@inline
+	#@ipref lua/
+	#include "clua_env"
 }
 
 #[ block	1 ]#
