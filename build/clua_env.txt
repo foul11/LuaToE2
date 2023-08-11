@@ -10,7 +10,7 @@ if(0){
 if(first()){
     function table table:clua_print(Args:table){
         if(!(This["_class",number] == 1)){
-            error("clua_print" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 7)
+            error("clua_print" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 25)
         }
         local Print = ""
         
@@ -52,10 +52,52 @@ if(first()){
     
     function table table:clua_printTable(Args:table){
         if(!(This["_class",number] == 1)){
-            error("clua_printTable" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 57)
+            error("clua_printTable" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 75)
         }
         print("printTable:")
         printTable(Args[1,table])
-        return table(This:cluaNewVar(7))
+        return table()
+    }
+    
+    function table table:clua_table_insert(Args:table){
+        if(!(This["_class",number] == 1)){
+            error("clua_table_insert" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 84)
+        }
+        local Tbl = Args[1,table]
+        local Idx = Args[2,table]
+        local Val = Args[3,table]
+        local RIdx = 0
+        
+        if((Tbl["Type",number] ?: 8) != 7){
+            error("Not implement (check " + "clua_table_insert" + ":" + 91 + ")")
+        }
+        
+        if((Val["Type",number] ?: 8) != 8){
+            if((Idx["Type",number] ?: 8) != 5){
+                error("Not implement (check " + "clua_table_insert" + ":" + 94 + ")")
+            }
+            RIdx = Idx["Value",number]
+            Tbl:insertTable(RIdx, Val)
+        }else{
+            Tbl:pushTable(Idx)
+            RIdx = Tbl:ncount()
+        }
+        local Ret = This:cluaNewVar(5)
+        Ret["Value",number] = RIdx
+        return table(Ret)
+    }
+    
+    function table table:clua_inc(Args:table){
+        if(!(This["_class",number] == 1)){
+            error("clua_inc" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 110)
+        }
+        local Val = Args[1,table]
+        
+        if((Val["Type",number] ?: 8) != 5){
+            error("Not implement (check " + "clua_inc" + ":" + 113 + ")")
+        }
+        Val["Value",number] = Val["Value",number] + 1
+        print("clua_inc: " + Val["Value",number])
+        return table(Val)
     }
 }

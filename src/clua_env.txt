@@ -3,6 +3,24 @@
 if(0){ function table table:cluaNewVar(Type){} }
 
 if(first()){
+#[
+	@define _newVarStr \
+		This:cluaNewVar(_LUA_TYPE_STRING)
+		
+	@define _newVarTbl \
+		This:cluaNewVar(_LUA_TYPE_TABLE)
+	
+	@define _newVarNum \
+		This:cluaNewVar(_LUA_TYPE_NUMBER)
+		
+	@define _newVarBool \
+		This:cluaNewVar(_LUA_TYPE_BOOLEAN)
+		
+	@define _newVarNil \
+		This:cluaNewVar(_LUA_TYPE_NIL)
+		
+	
+]#
 	function table table:clua_print(Args:table){
 		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
 		
@@ -59,6 +77,44 @@ if(first()){
 		print("printTable:")
 		printTable(Args[1,table])
 		
-		return table(This:cluaNewVar(_LUA_TYPE_TABLE))
+		return table()
+	}
+	
+	function table table:clua_table_insert(Args:table){
+		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
+		
+		local Tbl = Args[1,table]
+		local Idx = Args[2,table]
+		local Val = Args[3,table]
+		local RIdx = 0
+		
+		if(_VarType(Tbl) != _LUA_TYPE_TABLE){ _THROW_LUA_ERROR("bad argument #1 to 'insert' (table expected, got " + _VarType(Tbl) + ")") }
+		
+		if(_VarType(Val) != _LUA_TYPE_NIL){
+			if(_VarType(Idx) != _LUA_TYPE_NUMBER){ _THROW_LUA_ERROR("bad argument #2 to 'insert' (number expected, got " + _VarType(Idx) + ")") }
+			
+			RIdx = _VarNum(Idx)
+			Tbl:insertTable(RIdx, Val)
+		}else{
+			Tbl:pushTable(Idx)
+			RIdx = Tbl:ncount()
+		}
+		
+		local Ret = _newVarNum
+		_VarSetNum(Ret, RIdx)
+		
+		return table(Ret)
+	}
+	
+	function table table:clua_inc(Args:table){
+		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
+		
+		local Val = Args[1,table]
+		if(_VarType(Val) != _LUA_TYPE_NUMBER){ _THROW_LUA_ERROR("bad argument #1 to 'inc' (number expected, got " + _VarType(Val) + ")") }
+		
+		_VarSetNum(Val, _VarNum(Val) + 1)
+		print("clua_inc: " + _VarNum(Val))
+		
+		return table(Val)
 	}
 }

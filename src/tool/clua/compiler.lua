@@ -33,7 +33,7 @@ local _CLUA_INST = {
 	EXT_CALL    = 1 , -- statments
 	CALL        = 2 ,
 	DECLARATION = 3 ,
-	ASSIGMENT   = 4 ,
+	ASSIGNMENT  = 4 ,
 	CONTINUE    = 5 , -- GLUA
 	BREAK       = 6 ,
 	RETURN      = 7 ,
@@ -119,6 +119,7 @@ local buffNl  = function(ret, depth) buff(ret, '\n') buff(ret, ('      '):rep(de
 local buffCom = function(ret, msg)   buff(ret, F(' #[ %s ]#', msg))                    end -- comment
 
 local _compileE2_Expressions
+local _compileE2_Statements
 local function _compileE2_call_part(ast, depth)
 	local Ret = {}
 	
@@ -268,6 +269,33 @@ function _compileE2_Expressions(ast, depth)
 			
 			buff(Ret, '2 = ')
 			buff(Ret, _compileE2_Expressions(ast.member, depth))
+		elseif Type == 'function' then
+			local Count = #ast.parameters
+			local depth = depth
+			
+			buff(Ret, '1 = table(')
+			buffNl(Ret, depth + 1)
+			for k,v in ipairs(ast.parameters) do
+				local depth = depth + 1
+				
+				buff(Ret, k)
+				buff(Ret, ' = ')
+				buff(Ret, _compileE2_Expressions(ast.parameters[k], depth))
+				
+				if k ~= Count then
+					buff(Ret, ',')
+					buffNl(Ret, depth)
+				end
+			end
+			buffNl(Ret, depth)
+			buff(Ret, ')')
+			buff(Ret, ',')
+			buffNl(Ret, depth)
+			
+			buff(Ret, '2 = ')
+			buff(Ret, _compileE2_Statements(ast.body, depth))
+		else
+			error('expr not compile: ' .. Type)
 		end
 	buffNl(Ret, depth - 1)
 	buff(Ret, ')')
@@ -279,7 +307,7 @@ function _compileE2_Expressions(ast, depth)
 	return table.concat(Ret, '')
 end
 
-local function _compileE2_Statements(ast, depth)
+function _compileE2_Statements(ast, depth)
 	local Ret = {}
 	local Type = ast.type
 	local depth = (depth or 0) + 1
@@ -307,6 +335,55 @@ local function _compileE2_Statements(ast, depth)
 			end
 		elseif Type == 'call' then
 			buff(Ret, _compileE2_call_part(ast, depth))
+		elseif Type == 'assignment' then
+			local Count = #ast.targets
+			local depth = depth + 1
+			
+			buff(Ret, '1 = table(')
+			buffNl(Ret, depth)
+			for k,v in ipairs(ast.targets) do
+				local depth = depth + 1
+				buff(Ret, k)
+				buff(Ret, ' = table(')
+					buffNl(Ret, depth)
+					
+					buff(Ret, '1 = ')
+					buff(Ret, _compileE2_Expressions(ast.targets[k], depth))
+					buff(Ret, ',')
+					buffNl(Ret, depth)
+					
+					buff(Ret, '2 = ')
+					buff(Ret, _compileE2_Expressions(ast.values[k], depth))
+				buffNl(Ret, depth - 1)
+				buff(Ret, ')')
+				
+				if k ~= Count then
+					buff(Ret, ',')
+					buffNl(Ret, depth)
+				end
+			end
+			buffNl(Ret, depth - 1)
+			buff(Ret, ')')
+		elseif Type == 'return' then
+			local Count = #ast.values
+			local depth = depth + 1
+			
+			buff(Ret, '1 = table(')
+			buffNl(Ret, depth)
+			for k,v in ipairs(ast.values) do
+				buff(Ret, k)
+				buff(Ret, ' = ')
+				buff(Ret, _compileE2_Expressions(ast.values[k], depth))
+				
+				if k ~= Count then
+					buff(Ret, ',')
+					buffNl(Ret, depth)
+				end
+			end
+			buffNl(Ret, depth - 1)
+			buff(Ret, ')')
+		else
+			error('stmt not compile: ' .. Type)
 		end
 	buffNl(Ret, depth - 1)
 	buff(Ret, ')')

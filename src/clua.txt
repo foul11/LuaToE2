@@ -81,7 +81,7 @@
 		EXT_CALL   , #statments
 		CALL       ,
 		DECLARATION,
-		ASSIGMENT  ,
+		ASSIGNMENT ,
 		CONTINUE   , #GLUA
 		BREAK      ,
 		RETURN     ,
@@ -135,6 +135,73 @@
 		SHP  = 3, ##
 		        , #~ - skip
 	}
+	
+	
+	
+	@define _assertVar(VAR) \
+		_debug(_assertClass(VAR, "isnt Variable", _CLUA_TYPE_VARIABLE))
+		
+	@define _IsVar(VAR) \
+		VAR["_class",number] == _CLUA_TYPE_VARIABLE
+		
+	@define _VarType(VAR) \
+		VAR["Type",number] ?: _LUA_TYPE_NIL
+		
+	@define _VarSetType(VAR, TYPE) \
+		VAR["Type",number] = TYPE
+		
+	@define _VarPointer(VAR, TYPE) \
+		(TYPE == _LUA_TYPE_BOOLEAN) ? (VAR["Value",number]+"") : \
+			(TYPE == _LUA_TYPE_STRING ? VAR["Value",string] : format("%p", VAR["Value",table]))
+		
+	@define _TblSet(TABLE, KEY, VALUE) \
+		local KeyT = _VarType(KEY) \
+		if(KeyT == _LUA_TYPE_NUMBER){ \
+			TABLE[ _VarNum(KEY),table] = VALUE \
+		}else{ \
+			local KeyP = _VarPointer(KEY, KeyT) \
+			TABLE[KeyT + _TblDmtr + KeyP,table] = VALUE \
+		}
+		
+	@define _TblGet(RET, TABLE, KEY) \
+		local KeyT = _VarType(KEY) \
+		if(KeyT == _LUA_TYPE_NUMBER){ \
+			RET = TABLE[ _VarNum(KEY),table] \
+		}else{ \
+			local KeyP = _VarPointer(KEY, KeyT) \
+			RET = TABLE[KeyT + _TblDmtr + KeyP,table] \
+		}
+		
+		
+	@define _VarSetStr(VAR, VAL) \
+		VAR["Value",string] = VAL
+		
+	@define _VarSetTbl(VAR, VAL) \
+		VAR["Value",table] = VAL
+		
+	@define _VarSetNum(VAR, VAL) \
+		VAR["Value",number] = VAL
+		
+	@define _VarSetBool(VAR, VAL) \
+		VAR["Value",number] = VAL
+		
+		
+	@define _VarStr(VAR) \
+		VAR["Value",string]
+		
+	@define _VarTbl(VAR) \
+		VAR["Value",table]
+		
+	@define _VarNum(VAR) \
+		VAR["Value",number]
+		
+	@define _VarBool(VAR) \
+		VAR["Value",number]
+		
+	
+	@define _TblDmtr \
+		":TYPE-VALUE:"
+	
 ]#
 
 if(first()){
@@ -223,9 +290,16 @@ if(first()){
 	function table table:cluaBuildEnv(){
 		_debug(_assertClass(This, "can't use to", _CLUA_TYPE_INSTANCE))
 		
+		local Table = This:cluaNewVar(_LUA_TYPE_TABLE)
+		local Insert = This:cluaNewVar(_LUA_TYPE_STRING) _VarSetStr(Insert, "insert")
+		
+		_TblSet(Table, Insert, This:cluaMakeExtFunc("table_insert"))
+		
 		This["Vars",table] = table(
 			"PrintTable" = This:cluaMakeExtFunc("printTable"),
-			"print" = This:cluaMakeExtFunc("print")
+			"print" = This:cluaMakeExtFunc("print"),
+			"table" = Table,
+			"inc" = This:cluaMakeExtFunc("inc")
 		)
 		
 		return This
@@ -345,14 +419,33 @@ if(first()){
 			LScope["Return",table]:pushTable(Ret)
 		}
 		
-		
-		if(ScopesCount == 1){
+		if(ScopesCount == 2){ #ScopesCount == 1 in Block (autoPop)
 			LCtx["Return",table] = LScope["Return",table]
+			Scopes:cluaSCOPEpop()
 		}else{
 			local LLScope = Scopes[ScopesCount - LScope["IndexReturn",number],table] _debug(_assertClass(LLScope, "LLScope not scope", _CLUA_TYPE_SCOPE))
 			
 			LLScope["Scopes",table]:pushTable(Scopes:cluaSCOPEpop())
 		}
+		
+		return This
+	}
+	
+	function table table:cluaCTXReturn(Rets:table){
+		_debug(_assertClass(This, "can't use to:", _CLUA_TYPE_CONTEXTS))
+		
+		local CtxCount = This:ncount()                    _debug(_assert(CtxCount, "Ctxs count is 0"))
+		local LCtx = This[CtxCount,table]                 _debug(_assertClass(LCtx, "LCtx", _CLUA_TYPE_CONTEXT))
+		local Scopes = LCtx["Scopes",table]               _debug(_assertClass(Scopes, "Scopes", _CLUA_TYPE_SCOPES))
+		
+		Scopes:clear()
+		
+		#[@debug]#
+		foreach(K:number, T:table = Rets){
+			_debug(_assertClass(T, "can't use to:", _CLUA_TYPE_VARIABLE))
+		}
+		
+		LCtx["Return",table] = Rets
 		
 		return This
 	}
@@ -369,61 +462,10 @@ if(first()){
 	
 	@define _LSCOPEGetReturn(SCOPEINDEX, INDEX) \
 		LScopes[LScopesCount - SCOPEINDEX,table]["Return",table][INDEX,table]
-		
-	@define _assertVar(VAR) \
-		_debug(_assertClass(VAR, "isnt Variable", _CLUA_TYPE_VARIABLE))
-		
-	@define _VarType(VAR) \
-		VAR["Type",number]
-		
-	@define _VarPointer(VAR, TYPE) \
-		(TYPE == _LUA_TYPE_BOOLEAN) ? (VAR["Value",number]+"") : \
-			(TYPE == _LUA_TYPE_STRING ? VAR["Value",string] : format("%p", VAR["Value",table]))
-		
-	@define _TblSet(TABLE, KEY, VALUE) \
-		local KeyT = _VarType(KEY) \
-		if(KeyT == _LUA_TYPE_NUMBER){ \
-			TABLE[ _VarNum(KEY),table] = VALUE \
-		}else{ \
-			local KeyP = _VarPointer(KEY, KeyT) \
-			TABLE[KeyT + _TblDmtr + KeyP,table] = VALUE \
-		}
-		
-	@define _TblGet(RET, TABLE, KEY) \
-		local KeyT = _VarType(KEY) \
-		if(KeyT == _LUA_TYPE_NUMBER){ \
-			RET = TABLE[ _VarNum(KEY),table] \
-		}else{ \
-			local KeyP = _VarPointer(KEY, KeyT) \
-			RET = TABLE[KeyT + _TblDmtr + KeyP,table] \
-		}
-		
-		
-	@define _VarSetStr(VAR, VAL) \
-		VAR["Value",string] = VAL
-		
-	@define _VarSetTbl(VAR, VAL) \
-		VAR["Value",table] = VAL
-		
-	@define _VarSetNum(VAR, VAL) \
-		VAR["Value",number] = VAL
-		
-	@define _VarSetBool(VAR, VAL) \
-		VAR["Value",number] = VAL
-		
-		
-	@define _VarStr(VAR) \
-		VAR["Value",string]
-		
-	@define _VarTbl(VAR) \
-		VAR["Value",table]
-		
-	@define _VarNum(VAR) \
-		VAR["Value",number]
-		
-	@define _VarBool(VAR) \
-		VAR["Value",number]
-		
+	
+	@define _LSCOPEGetReturns(SCOPEINDEX) \
+		LScopes[LScopesCount - SCOPEINDEX,table]["Return",table]
+	
 	
 	@define _VarNumOp(RESULT, LEFT, OP, RIGHT) \
 		RESULT["Value",number] = __BINARY__(_VarNum(Left), OP, _VarNum(Right))
@@ -432,6 +474,9 @@ if(first()){
 		RESULT["Value",number] = __BINARY__(_VarBool(Left), OP, _VarBool(Right))
 	
 	
+	@define _newVarFunc \
+		Instance:cluaNewVar(_LUA_TYPE_FUNCTION)
+		
 	@define _newVarStr \
 		Instance:cluaNewVar(_LUA_TYPE_STRING)
 		
@@ -448,8 +493,19 @@ if(first()){
 		Instance:cluaNewVar(_LUA_TYPE_NIL)
 		
 	
-	@define _TblDmtr \
-		":TYPE-VALUE:"
+	@define _VarAss(TARGET, VALUE) \
+		local TargetT = _VarType(VALUE) \
+		_VarSetType(TARGET, TargetT) \
+		switch(TargetT){ \
+			case _LUA_TYPE_USERDATA, _VarSetTbl(TARGET, _VarTbl(VALUE)) break \
+			case _LUA_TYPE_FUNCTION, _VarSetTbl(TARGET, _VarTbl(VALUE)) break \
+			case _LUA_TYPE_BOOLEAN , _VarSetNum(TARGET, _VarNum(VALUE)) break \
+			case _LUA_TYPE_STRING  , _VarSetStr(TARGET, _VarStr(VALUE)) break \
+			case _LUA_TYPE_NUMBER  , _VarSetNum(TARGET, _VarNum(VALUE)) break \
+			case _LUA_TYPE_THREAD  , _VarSetTbl(TARGET, _VarTbl(VALUE)) break \
+			case _LUA_TYPE_TABLE   , _VarSetTbl(TARGET, _VarTbl(VALUE)) break \
+			case _LUA_TYPE_NIL     , _VarSetNum(TARGET, 0)              break \
+		}
 	
 	
 	@define _THROW_LUA_ERROR(MSG) \
@@ -497,7 +553,7 @@ if(first()){
 						break
 					}
 					
-					local DeadContext = Context["DeadContext",table]
+					local DeadContext = Context["DeadContext",table] _debug(_assertClass(DeadContext, "DeadContext:", _CLUA_TYPE_CONTEXT))
 					
 					Contexts:cluaCTXPushReturn(DeadContext["Return",table], 1)
 					break
@@ -516,7 +572,7 @@ if(first()){
 					local I = ArgsCount - I
 					
 					if(I >= 1){ #[ Get Args ]#
-						local Statment = Args[I,table]
+						local Statment = Args[ArgsCount - I,table]
 						Scopes:cluaSCOPEpush(Statment, 1)
 					}elseif(I == 0){ #[ Get Callee ]#
 						local Statment = Code[I + 1,table]
@@ -529,6 +585,7 @@ if(first()){
 						
 						if(CalleeType == _LUA_TYPE_FUNCTION){
 							LScopes[LScopesCount,table] = Callee
+							Callee["NewCtx",table] = Callee["Value",table]:cluaCreateFuncContext()
 						}elseif(CalleeType == _LUA_TYPE_TABLE){
 							error("Not implement (check __call metamethod)") #TODO: 
 						}else{
@@ -631,21 +688,18 @@ if(first()){
 					}
 					
 					if(I != -1){
-						if(Variable["_class",number] == _CLUA_TYPE_VARIABLE){
-							if(Variable["Type",number] == _LUA_TYPE_FUNCTION){
-								Variable["NewCtx",table] = Variable["Value",table]:cluaCreateFuncContext()
-							}
-							
+						if(_IsVar(Variable)){
 							Contexts:cluaCTXPushReturn(Variable, 0)
 						}
 					}else{
+						GVars[Name,table] = _newVarNil
 						Contexts:cluaCTXPushReturn(
-							Instance:cluaNewVar(_LUA_TYPE_NIL), 0
+							GVars[Name,table], 0
 						)
 					}
 					break
 					
-				case _CLUA_INST_BINARY,
+				case _CLUA_INST_BINARY, #TODO: operator and & or to lazy
 					if(I == 1){
 						local Left = Code[2,table]
 						local Right = Code[3,table]
@@ -777,7 +831,7 @@ if(first()){
 						
 						_TblGet(Ret, Object, Member)
 						
-						if(!_VarType(Ret)){
+						if(_VarType(Ret) == _LUA_TYPE_NIL){
 							Ret = _newVarNil
 						}
 						
@@ -785,13 +839,64 @@ if(first()){
 					}
 					break
 					
+				case _CLUA_INST_ASSIGNMENT,
+					local CurrVar = LScope["CurrVar",table]
+					local Code = Code[1,table]
+					
+					if(I == Code:count() * 2 + 1){
+						Scopes:cluaSCOPEpop()
+					}elseif(I % 2){
+						local Code = Code[(I+1) / 2,table]
+						local Target = Code[1,table]
+						local Value = Code[2,table]
+						
+						Scopes:cluaSCOPEpush(Target, 1)
+						Scopes:cluaSCOPEpush(Value,  2)
+					}else{              _LSCOPES
+						local Target  = _LSCOPEGetReturn(0, 1)
+						local Value   = _LSCOPEGetReturn(1, 1)
+						
+						_VarAss(Target, Value)
+					}
+					break
+					
+				case _CLUA_INST_RETURN,
+					local CurrVar = LScope["CurrVar",table]
+					local Code = Code[1,table]
+					local Expr = Code[I,table]
+					
+					if(I != 1){         _LSCOPES
+						local Value   = _LSCOPEGetReturn(0, 1)
+						
+						CurrVar:pushTable(Value)
+					}
+					
+					if(Code:count() + 1 == I){
+						Contexts:cluaCTXReturn(CurrVar)
+					}else{
+						Scopes:cluaSCOPEpush(Expr, 1)
+					}
+					break
+					
+				case _CLUA_INST_FUNCTION, #TODO: param parse
+					#[ local CurrVar = LScope["CurrVar",table] ]#
+					local Parm  = Code[1,table]
+					local Block = Code[2,table]
+					
+					local Ret = _newVarFunc
+					
+					_VarSetTbl(Ret, Instance:cluaToFunc(Block))
+					
+					Contexts:cluaCTXPushReturn(Ret, 0)
+					break
+					
 				default,
-					error("cluaContextExecute undefined type: " + Type)
+					error("cluaContextExecute undefined type: " + Type + " " + __LINE__)
 					break
 			}
 			
 			if(!Scopes:ncount()){
-				Context["DeadContext",table] = Contexts:popTable()
+				Contexts[ContextsCount - 1,table]["DeadContext",table] = Contexts:popTable()
 				
 				if(!Contexts:ncount()){
 					Context["IsComplete",number] = 1

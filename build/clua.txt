@@ -4,7 +4,7 @@ ALWAYS_TRUE = 1
 if(first()){
     function table table:cluaNewVar(Type){
         if(!(This["_class",number] == 1)){
-            error("cluaNewVar" + " " + "can't use to" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 142)
+            error("cluaNewVar" + " " + "can't use to" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 209)
         }
         
         switch(Type){
@@ -24,7 +24,7 @@ if(first()){
     
     function table table:cluaGetVar(Name:string){
         if(!(This["_class",number] == 5)){
-            error("cluaGetVar" + " " + "can't get var from:" + " " + "_CLUA_TYPE_CONTEXT" + "[got " + This["_class",number] + "]" + ":" + 164)
+            error("cluaGetVar" + " " + "can't get var from:" + " " + "_CLUA_TYPE_CONTEXT" + "[got " + This["_class",number] + "]" + ":" + 231)
         }
         
         if(ALWAYS_TRUE){
@@ -56,7 +56,7 @@ if(first()){
     
     function table table:cluaMakeExtFunc(Name:string){
         if(!(This["_class",number] == 1)){
-            error("cluaMakeExtFunc" + " " + "can't use to" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 194)
+            error("cluaMakeExtFunc" + " " + "can't use to" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 261)
         }
         local ExtFunc = This:cluaNewVar(2)
         ExtFunc["Value",table] = table("Code" = table("_Type" = 10, 1 = table("_Type" = 1, 1 = "clua_" + Name)), "Instance" = This, "Args" = table(), "_class" = 4)
@@ -65,11 +65,11 @@ if(first()){
     
     function table table:cluaBuildEnv(Vars:table){
         if(!(This["_class",number] == 1)){
-            error("cluaBuildEnv" + " " + "can't use to" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 215)
+            error("cluaBuildEnv" + " " + "can't use to" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 282)
         }
         
         if(!(Vars["_class",number] == 2)){
-            error("cluaBuildEnv" + " " + "accept only table variables" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Vars["_class",number] + "]" + ":" + 216)
+            error("cluaBuildEnv" + " " + "accept only table variables" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Vars["_class",number] + "]" + ":" + 283)
         }
         This["Vars",table] = This["Vars",table]:merge(Vars)
         return This
@@ -77,9 +77,20 @@ if(first()){
     
     function table table:cluaBuildEnv(){
         if(!(This["_class",number] == 1)){
-            error("cluaBuildEnv" + " " + "can't use to" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 224)
+            error("cluaBuildEnv" + " " + "can't use to" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 291)
         }
-        This["Vars",table] = table("PrintTable" = This:cluaMakeExtFunc("printTable"), "print" = This:cluaMakeExtFunc("print"))
+        local Table = This:cluaNewVar(7)
+        local Insert = This:cluaNewVar(4)
+        Insert["Value",string] = "insert"
+        local KeyT = (Insert["Type",number] ?: 8)
+        
+        if(KeyT == 5){
+            Table[Insert["Value",number],table] = This:cluaMakeExtFunc("table_insert")
+        }else{
+            local KeyP = (KeyT == 3 ? Insert["Value",number] + "" : (KeyT == 4 ? Insert["Value",string] : format("%p", Insert["Value",table])))
+            Table[KeyT + ":TYPE-VALUE:" + KeyP,table] = This:cluaMakeExtFunc("table_insert")
+        }
+        This["Vars",table] = table("PrintTable" = This:cluaMakeExtFunc("printTable"), "print" = This:cluaMakeExtFunc("print"), "table" = Table, "inc" = This:cluaMakeExtFunc("inc"))
         return This
     }
     
@@ -90,22 +101,22 @@ if(first()){
     
     function table table:cluaToFunc(Code:table){
         if(!(This["_class",number] == 1)){
-            error("cluaToFunc" + " " + "not compile to function (This):" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 245)
+            error("cluaToFunc" + " " + "not compile to function (This):" + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 319)
         }
         
         if(!(Code["_Type",number] == 10)){
-            error("cluaToFunc" + " " + "not compile to function (Code)" + ":" + 246)
+            error("cluaToFunc" + " " + "not compile to function (Code)" + ":" + 320)
         }
         return table("Code" = Code, "Instance" = This, "Args" = table(), "_class" = 3)
     }
     
     function table table:cluaSCOPEpush(Code:table, IndexReturn){
         if(!(This["_class",number] == 9)){
-            error("cluaSCOPEpush" + " " + "can't use to:" + " " + "_CLUA_TYPE_SCOPES" + "[got " + This["_class",number] + "]" + ":" + 267)
+            error("cluaSCOPEpush" + " " + "can't use to:" + " " + "_CLUA_TYPE_SCOPES" + "[got " + This["_class",number] + "]" + ":" + 341)
         }
         
         if(!Code["_Type",number]){
-            error("cluaSCOPEpush" + " " + "Statment type is null" + ":" + 268)
+            error("cluaSCOPEpush" + " " + "Statment type is null" + ":" + 342)
         }
         This:pushTable(table("Code" = Code, "Vars" = table(), "Scopes" = table("_class" = 9, "_classsub" = 10), "Contexts" = table("_class" = 6, "_classsub" = 7), "Return" = table(), "Instruction" = 1, "CurrVar" = table(), "IndexReturn" = IndexReturn, "_class" = 8))
         return This
@@ -113,18 +124,18 @@ if(first()){
     
     function table table:cluaSCOPEpop(){
         if(!(This["_class",number] == 9)){
-            error("cluaSCOPEpop" + " " + "can't use to:" + " " + "_CLUA_TYPE_SCOPES" + "[got " + This["_class",number] + "]" + ":" + 292)
+            error("cluaSCOPEpop" + " " + "can't use to:" + " " + "_CLUA_TYPE_SCOPES" + "[got " + This["_class",number] + "]" + ":" + 366)
         }
         
         if(!This:ncount()){
-            error("cluaSCOPEpop" + " " + "Scopes count is 0" + ":" + 293)
+            error("cluaSCOPEpop" + " " + "Scopes count is 0" + ":" + 367)
         }
         return This:popTable()
     }
     
     function table table:cluaCreateFuncContext(){
         if(!(This["_class",number] == 3 | This["_class",number] == 4)){
-            error("cluaCreateFuncContext" + " " + "can't create context" + ":" + 299)
+            error("cluaCreateFuncContext" + " " + "can't create context" + ":" + 373)
         }
         local Ctx = table("Scopes" = table("_class" = 9):cluaSCOPEpush(This["Code",table], 1), "Instance" = This["Instance",table], "Func" = This, "IsComplete" = 0, "VarArg" = table(), "Return" = table(), "Contexts" = table("_class" = 6), "DeadContext" = table(), "_class" = 5)
         Ctx["Contexts",table]:pushTable(Ctx)
@@ -133,60 +144,91 @@ if(first()){
     
     function table table:cluaCTXPushReturn(Ret:table, Multipe){
         if(!(This["_class",number] == 6)){
-            error("cluaCTXPushReturn" + " " + "can't use to:" + " " + "_CLUA_TYPE_CONTEXTS" + "[got " + This["_class",number] + "]" + ":" + 327)
+            error("cluaCTXPushReturn" + " " + "can't use to:" + " " + "_CLUA_TYPE_CONTEXTS" + "[got " + This["_class",number] + "]" + ":" + 401)
         }
         local CtxCount = This:ncount()
         
         if(!CtxCount){
-            error("cluaCTXPushReturn" + " " + "Ctxs count is 0" + ":" + 329)
+            error("cluaCTXPushReturn" + " " + "Ctxs count is 0" + ":" + 403)
         }
         local LCtx = This[CtxCount,table]
         
         if(!(LCtx["_class",number] == 5)){
-            error("cluaCTXPushReturn" + " " + "LCtx" + " " + "_CLUA_TYPE_CONTEXT" + "[got " + LCtx["_class",number] + "]" + ":" + 330)
+            error("cluaCTXPushReturn" + " " + "LCtx" + " " + "_CLUA_TYPE_CONTEXT" + "[got " + LCtx["_class",number] + "]" + ":" + 404)
         }
         local Scopes = LCtx["Scopes",table]
         
         if(!(Scopes["_class",number] == 9)){
-            error("cluaCTXPushReturn" + " " + "Scopes" + " " + "_CLUA_TYPE_SCOPES" + "[got " + Scopes["_class",number] + "]" + ":" + 331)
+            error("cluaCTXPushReturn" + " " + "Scopes" + " " + "_CLUA_TYPE_SCOPES" + "[got " + Scopes["_class",number] + "]" + ":" + 405)
         }
         local ScopesCount = Scopes:ncount()
         local LScope = Scopes[ScopesCount,table]
         
         if(!(LScope["_class",number] == 8)){
-            error("cluaCTXPushReturn" + " " + "LScope not scope" + " " + "_CLUA_TYPE_SCOPE" + "[got " + LScope["_class",number] + "]" + ":" + 334)
+            error("cluaCTXPushReturn" + " " + "LScope not scope" + " " + "_CLUA_TYPE_SCOPE" + "[got " + LScope["_class",number] + "]" + ":" + 408)
         }
         
         if(Multipe){
             foreach(K:number, T:table = Ret){
                 if(!(T["_class",number] == 2)){
-                    error("cluaCTXPushReturn" + " " + "can't use to:" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + T["_class",number] + "]" + ":" + 339)
+                    error("cluaCTXPushReturn" + " " + "can't use to:" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + T["_class",number] + "]" + ":" + 413)
                 }
             }
             LScope["Return",table] = Ret
         }else{
             if(!(Ret["_class",number] == 2)){
-                error("cluaCTXPushReturn" + " " + "can't use to:" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Ret["_class",number] + "]" + ":" + 344)
+                error("cluaCTXPushReturn" + " " + "can't use to:" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Ret["_class",number] + "]" + ":" + 418)
             }
             LScope["Return",table]:pushTable(Ret)
         }
         
-        if(ScopesCount == 1){
+        if(ScopesCount == 2){
             LCtx["Return",table] = LScope["Return",table]
+            Scopes:cluaSCOPEpop()
         }else{
             local LLScope = Scopes[ScopesCount - LScope["IndexReturn",number],table]
             
             if(!(LLScope["_class",number] == 8)){
-                error("cluaCTXPushReturn" + " " + "LLScope not scope" + " " + "_CLUA_TYPE_SCOPE" + "[got " + LLScope["_class",number] + "]" + ":" + 352)
+                error("cluaCTXPushReturn" + " " + "LLScope not scope" + " " + "_CLUA_TYPE_SCOPE" + "[got " + LLScope["_class",number] + "]" + ":" + 426)
             }
             LLScope["Scopes",table]:pushTable(Scopes:cluaSCOPEpop())
         }
         return This
     }
     
+    function table table:cluaCTXReturn(Rets:table){
+        if(!(This["_class",number] == 6)){
+            error("cluaCTXReturn" + " " + "can't use to:" + " " + "_CLUA_TYPE_CONTEXTS" + "[got " + This["_class",number] + "]" + ":" + 435)
+        }
+        local CtxCount = This:ncount()
+        
+        if(!CtxCount){
+            error("cluaCTXReturn" + " " + "Ctxs count is 0" + ":" + 437)
+        }
+        local LCtx = This[CtxCount,table]
+        
+        if(!(LCtx["_class",number] == 5)){
+            error("cluaCTXReturn" + " " + "LCtx" + " " + "_CLUA_TYPE_CONTEXT" + "[got " + LCtx["_class",number] + "]" + ":" + 438)
+        }
+        local Scopes = LCtx["Scopes",table]
+        
+        if(!(Scopes["_class",number] == 9)){
+            error("cluaCTXReturn" + " " + "Scopes" + " " + "_CLUA_TYPE_SCOPES" + "[got " + Scopes["_class",number] + "]" + ":" + 439)
+        }
+        Scopes:clear()
+        
+        foreach(K:number, T:table = Rets){
+            if(!(T["_class",number] == 2)){
+                error("cluaCTXReturn" + " " + "can't use to:" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + T["_class",number] + "]" + ":" + 445)
+            }
+        }
+        LCtx["Return",table] = Rets
+        return This
+    }
+    
     function number table:cluaContextExecute(Perf){
         if(!(This["_class",number] == 5)){
-            error("cluaContextExecute" + " " + "can't execute: " + " " + "_CLUA_TYPE_CONTEXT" + "[got " + This["_class",number] + "]" + ":" + 459)
+            error("cluaContextExecute" + " " + "can't execute: " + " " + "_CLUA_TYPE_CONTEXT" + "[got " + This["_class",number] + "]" + ":" + 515)
         }
         
         if(This["IsComplete",number]){
@@ -224,6 +266,10 @@ if(first()){
                         break
                     }
                     local DeadContext = Context["DeadContext",table]
+                    
+                    if(!(DeadContext["_class",number] == 5)){
+                        error("cluaContextExecute" + " " + "DeadContext:" + " " + "_CLUA_TYPE_CONTEXT" + "[got " + DeadContext["_class",number] + "]" + ":" + 556)
+                    }
                     Contexts:cluaCTXPushReturn(DeadContext["Return",table], 1)
                     break
                 case 1,
@@ -238,7 +284,7 @@ if(first()){
                     local I = ArgsCount - I
                     
                     if(I >= 1){
-                        local Statment = Args[I,table]
+                        local Statment = Args[ArgsCount - I,table]
                         Scopes:cluaSCOPEpush(Statment, 1)
                     }elseif(I == 0){
                         local Statment = Code[I + 1,table]
@@ -251,6 +297,7 @@ if(first()){
                         
                         if(CalleeType == 2){
                             LScopes[LScopesCount,table] = Callee
+                            Callee["NewCtx",table] = Callee["Value",table]:cluaCreateFuncContext()
                         }elseif(CalleeType == 7){
                             error("Not implement (check __call metamethod)")
                         }else{
@@ -340,13 +387,11 @@ if(first()){
                     
                     if(I != -1){
                         if(Variable["_class",number] == 2){
-                            if(Variable["Type",number] == 2){
-                                Variable["NewCtx",table] = Variable["Value",table]:cluaCreateFuncContext()
-                            }
                             Contexts:cluaCTXPushReturn(Variable, 0)
                         }
                     }else{
-                        Contexts:cluaCTXPushReturn(Instance:cluaNewVar(8), 0)
+                        GVars[Name,table] = Instance:cluaNewVar(8)
+                        Contexts:cluaCTXPushReturn(GVars[Name,table], 0)
                     }
                     break
                 case 21,
@@ -364,18 +409,18 @@ if(first()){
                         local Ret = Instance:cluaNewVar(8)
                         
                         if(!(Right["_class",number] == 2)){
-                            error("cluaContextExecute" + " " + "isnt Variable" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Right["_class",number] + "]" + ":" + 661)
+                            error("cluaContextExecute" + " " + "isnt Variable" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Right["_class",number] + "]" + ":" + 715)
                         }
                         
                         if(!(Left["_class",number] == 2)){
-                            error("cluaContextExecute" + " " + "isnt Variable" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Left["_class",number] + "]" + ":" + 662)
+                            error("cluaContextExecute" + " " + "isnt Variable" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Left["_class",number] + "]" + ":" + 716)
                         }
                         
                         if(0){
 
                         }else{
-                            if(!(Left["Type",number] == Right["Type",number])){
-                                error("Not implement (check " + "cluaContextExecute" + ":" + 667 + ")")
+                            if(!((Left["Type",number] ?: 8) == (Right["Type",number] ?: 8))){
+                                error("Not implement (check " + "cluaContextExecute" + ":" + 721 + ")")
                             }
                             
                             switch(Operator){
@@ -400,7 +445,7 @@ if(first()){
                                     Ret["Value",number] = Left["Value",number] % Right["Value",number]
                                     break
                                 case 13,
-                                    error("Not implement (check " + "cluaContextExecute" + ":" + 675 + ")")
+                                    error("Not implement (check " + "cluaContextExecute" + ":" + 729 + ")")
                                     break
                                 case 14,
                                     Ret = Instance:cluaNewVar(3)
@@ -435,7 +480,7 @@ if(first()){
                                     Ret["Value",number] = Left["Value",number] | Right["Value",number]
                                     break
                                 default,
-                                    error("Not implement (check " + "cluaContextExecute" + ":" + 686 + ")")
+                                    error("Not implement (check " + "cluaContextExecute" + ":" + 740 + ")")
                                     break
                             }
                         }
@@ -454,7 +499,7 @@ if(first()){
                         local Ret = Instance:cluaNewVar(8)
                         
                         if(!(Expr["_class",number] == 2)){
-                            error("cluaContextExecute" + " " + "isnt Variable" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Expr["_class",number] + "]" + ":" + 704)
+                            error("cluaContextExecute" + " " + "isnt Variable" + " " + "_CLUA_TYPE_VARIABLE" + "[got " + Expr["_class",number] + "]" + ":" + 758)
                         }
                         
                         if(0){
@@ -466,7 +511,7 @@ if(first()){
                                     Ret["Value",number] = -Expr["Value",number]
                                     break
                                 case 2,
-                                    switch(Expr["Type",number]){
+                                    switch((Expr["Type",number] ?: 8)){
                                         case 8,
                                             Ret = Instance:cluaNewVar(3)
                                             Ret["Value",number] = 1
@@ -482,7 +527,7 @@ if(first()){
                                     }
                                     break
                                 case 3,
-                                    switch(Expr["Type",number]){
+                                    switch((Expr["Type",number] ?: 8)){
                                         case 4,
                                             Ret = Instance:cluaNewVar(5)
                                             Ret["Value",number] = Expr["Value",string]:length()
@@ -492,12 +537,12 @@ if(first()){
                                             Ret["Value",number] = Expr["Value",table]:ncount()
                                             break
                                         default,
-                                            error("Not implement (check " + "cluaContextExecute" + ":" + 722 + ")")
+                                            error("Not implement (check " + "cluaContextExecute" + ":" + 776 + ")")
                                             break
                                     }
                                     break
                                 default,
-                                    error("Not implement (check " + "cluaContextExecute" + ":" + 726 + ")")
+                                    error("Not implement (check " + "cluaContextExecute" + ":" + 780 + ")")
                                     break
                             }
                         }
@@ -531,7 +576,7 @@ if(first()){
                             CurrVar[Key,table] = Value
                             CurrVar["_GenKey",number] = Key
                         }else{
-                            local KeyT = Key["Type",number]
+                            local KeyT = (Key["Type",number] ?: 8)
                             
                             if(KeyT == 5){
                                 CurrVar[Key["Value",number],table] = Value
@@ -554,7 +599,7 @@ if(first()){
                         local Object = LScopes[LScopesCount - 0,table]["Return",table][1,table]
                         local Member = LScopes[LScopesCount - 1,table]["Return",table][1,table]
                         local Ret = table()
-                        local KeyT = Member["Type",number]
+                        local KeyT = (Member["Type",number] ?: 8)
                         
                         if(KeyT == 5){
                             Ret = Object[Member["Value",number],table]
@@ -563,19 +608,92 @@ if(first()){
                             Ret = Object[KeyT + ":TYPE-VALUE:" + KeyP,table]
                         }
                         
-                        if(!Ret["Type",number]){
+                        if((Ret["Type",number] ?: 8) == 8){
                             Ret = Instance:cluaNewVar(8)
                         }
                         Contexts:cluaCTXPushReturn(Ret, 0)
                     }
                     break
+                case 4,
+                    local CurrVar = LScope["CurrVar",table]
+                    local Code = Code[1,table]
+                    
+                    if(I == Code:count() * 2 + 1){
+                        Scopes:cluaSCOPEpop()
+                    }elseif(I % 2){
+                        local Code = Code[(I + 1) / 2,table]
+                        local Target = Code[1,table]
+                        local Value = Code[2,table]
+                        Scopes:cluaSCOPEpush(Target, 1)
+                        Scopes:cluaSCOPEpush(Value, 2)
+                    }else{
+                        local LScopes = LScope["Scopes",table]
+                        local LScopesCount = LScopes:ncount()
+                        local Target = LScopes[LScopesCount - 0,table]["Return",table][1,table]
+                        local Value = LScopes[LScopesCount - 1,table]["Return",table][1,table]
+                        local TargetT = (Value["Type",number] ?: 8)
+                        Target["Type",number] = TargetT
+                        
+                        switch(TargetT){
+                            case 1,
+                                Target["Value",table] = Value["Value",table]
+                                break
+                            case 2,
+                                Target["Value",table] = Value["Value",table]
+                                break
+                            case 3,
+                                Target["Value",number] = Value["Value",number]
+                                break
+                            case 4,
+                                Target["Value",string] = Value["Value",string]
+                                break
+                            case 5,
+                                Target["Value",number] = Value["Value",number]
+                                break
+                            case 6,
+                                Target["Value",table] = Value["Value",table]
+                                break
+                            case 7,
+                                Target["Value",table] = Value["Value",table]
+                                break
+                            case 8,
+                                Target["Value",number] = 0
+                                break
+                        }
+                    }
+                    break
+                case 7,
+                    local CurrVar = LScope["CurrVar",table]
+                    local Code = Code[1,table]
+                    local Expr = Code[I,table]
+                    
+                    if(I != 1){
+                        local LScopes = LScope["Scopes",table]
+                        local LScopesCount = LScopes:ncount()
+                        local Value = LScopes[LScopesCount - 0,table]["Return",table][1,table]
+                        CurrVar:pushTable(Value)
+                    }
+                    
+                    if(Code:count() + 1 == I){
+                        Contexts:cluaCTXReturn(CurrVar)
+                    }else{
+                        Scopes:cluaSCOPEpush(Expr, 1)
+                    }
+                    break
+                case 22,
+                    local Parm = Code[1,table]
+                    local Block = Code[2,table]
+                    local Ret = Instance:cluaNewVar(2)
+                    Ret["Value",table] = Instance:cluaToFunc(Block)
+                    Contexts:cluaCTXPushReturn(Ret, 0)
+                    break
                 default,
-                    error("cluaContextExecute undefined type: " + Type)
+                    error("cluaContextExecute undefined type: " + Type + " " + 894)
                     break
             }
             
             if(!Scopes:ncount()){
-                Context["DeadContext",table] = Contexts:popTable()
+                Contexts[ContextsCount - 1,table]["DeadContext",table] = Contexts:popTable()
                 
                 if(!Contexts:ncount()){
                     Context["IsComplete",number] = 1
