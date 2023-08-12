@@ -9,9 +9,6 @@ if(0){
 
 if(first()){
     function table table:clua_print(Args:table){
-        if(!(This["_class",number] == 1)){
-            error("clua_print" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 25)
-        }
         local Print = ""
         
         foreach(K:number, Variable:table = Args){
@@ -51,30 +48,24 @@ if(first()){
     }
     
     function table table:clua_printTable(Args:table){
-        if(!(This["_class",number] == 1)){
-            error("clua_printTable" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 75)
-        }
         print("printTable:")
         printTable(Args[1,table])
         return table()
     }
     
     function table table:clua_table_insert(Args:table){
-        if(!(This["_class",number] == 1)){
-            error("clua_table_insert" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 84)
-        }
         local Tbl = Args[1,table]
         local Idx = Args[2,table]
         local Val = Args[3,table]
         local RIdx = 0
         
         if((Tbl["Type",number] ?: 8) != 7){
-            error("bad argument #1 to 'insert' (table expected, got " + (Tbl["Type",number] ?: 8) + ")" + ":" + 91)
+            error("bad argument #1 to 'insert' (table expected, got " + (Tbl["Type",number] ?: 8) + ")" + ":" + 85)
         }
         
         if((Val["Type",number] ?: 8) != 8){
             if((Idx["Type",number] ?: 8) != 5){
-                error("bad argument #2 to 'insert' (number expected, got " + (Idx["Type",number] ?: 8) + ")" + ":" + 94)
+                error("bad argument #2 to 'insert' (number expected, got " + (Idx["Type",number] ?: 8) + ")" + ":" + 88)
             }
             RIdx = Idx["Value",number]
             Tbl:insertTable(RIdx, Val)
@@ -87,17 +78,9 @@ if(first()){
         return table(Ret)
     }
     
-    function table table:clua_inc(Args:table){
-        if(!(This["_class",number] == 1)){
-            error("clua_inc" + " " + "not run e2func ThisClass not clua_instance: " + " " + "_CLUA_TYPE_INSTANCE" + "[got " + This["_class",number] + "]" + ":" + 110)
-        }
-        local Val = Args[1,table]
-        
-        if((Val["Type",number] ?: 8) != 5){
-            error("bad argument #1 to 'inc' (number expected, got " + (Val["Type",number] ?: 8) + ")" + ":" + 113)
-        }
-        Val["Value",number] = Val["Value",number] + 1
-        print("clua_inc: " + Val["Value",number])
-        return table(Val)
+    function table table:clua_systime(Args:table){
+        local Ret = This:cluaNewVar(5)
+        Ret["Value",number] = systime()
+        return table(Ret)
     }
 }

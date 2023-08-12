@@ -22,8 +22,6 @@ if(first()){
 	
 ]#
 	function table table:clua_print(Args:table){
-		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
-		
 		local Print = ""
 		
 		foreach(K:number, Variable:table = Args){
@@ -72,8 +70,6 @@ if(first()){
 	}
 	
 	function table table:clua_printTable(Args:table){
-		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
-		
 		print("printTable:")
 		printTable(Args[1,table])
 		
@@ -81,8 +77,6 @@ if(first()){
 	}
 	
 	function table table:clua_table_insert(Args:table){
-		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
-		
 		local Tbl = Args[1,table]
 		local Idx = Args[2,table]
 		local Val = Args[3,table]
@@ -106,15 +100,11 @@ if(first()){
 		return table(Ret)
 	}
 	
-	function table table:clua_inc(Args:table){
-		_debug(_assertClass(This, "not run e2func ThisClass not clua_instance: ", _CLUA_TYPE_INSTANCE))
+	function table table:clua_systime(Args:table){
+		local Ret = _newVarNum
 		
-		local Val = Args[1,table]
-		if(_VarType(Val) != _LUA_TYPE_NUMBER){ _THROW_LUA_ERROR("bad argument #1 to 'inc' (number expected, got " + _VarType(Val) + ")") }
+		_VarSetNum(Ret, systime())
 		
-		_VarSetNum(Val, _VarNum(Val) + 1)
-		print("clua_inc: " + _VarNum(Val))
-		
-		return table(Val)
+		return table(Ret)
 	}
 }

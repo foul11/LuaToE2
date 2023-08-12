@@ -299,7 +299,7 @@ if(first()){
 			"PrintTable" = This:cluaMakeExtFunc("printTable"),
 			"print" = This:cluaMakeExtFunc("print"),
 			"table" = Table,
-			"inc" = This:cluaMakeExtFunc("inc")
+			"SysTime" = This:cluaMakeExtFunc("systime")
 		)
 		
 		return This
@@ -352,10 +352,10 @@ if(first()){
 				"_class" = _CLUA_TYPE_SCOPES,
 				"_classsub" = _CLUA_TYPE_SCOPES_IN_SCOPE
 			),
-			"Contexts" = table(
-				"_class" = _CLUA_TYPE_CONTEXTS,
-				"_classsub" = _CLUA_TYPE_CONTEXTS_IN_SCOPE
-			),
+			#[ "Contexts" = table( ]#
+				#[ "_class" = _CLUA_TYPE_CONTEXTS, ]#
+				#[ "_classsub" = _CLUA_TYPE_CONTEXTS_IN_SCOPE ]#
+			#[ ), ]#
 			"Return" = table(), #тут значения которые вернул скоп
 			"Instruction" = 1,  #счетчик выполнения скопа
 			"CurrVar" = table(),#переменная в которую записываем результаты
@@ -425,10 +425,14 @@ if(first()){
 		
 		if(ScopesCount == 2){ #ScopesCount == 1 in Block (autoPop)
 			LCtx["Return",table] = LScope["Return",table]
-			Scopes:cluaSCOPEpop()
+			local Type = Scopes:cluaSCOPEpop()["Code",table]["_Type",number]
+			#[ print("Ret ctx Type:", Type) ]#
 		}else{
 			local LLScope = Scopes[ScopesCount - LScope["IndexReturn",number],table] _debug(_assertClass(LLScope, "LLScope not scope", _CLUA_TYPE_SCOPE))
-			
+			#[ print("Ret to scp Type:", LLScope["Code",table]["_Type",number]) ]#
+			#[ if(LLScope["Code",table]["_Type",number] == _CLUA_INST_ASSIGNMENT){ ]#
+				#[ printTable(Ret) ]#
+			#[ } ]#
 			LLScope["Scopes",table]:pushTable(Scopes:cluaSCOPEpop())
 		}
 		
@@ -670,12 +674,11 @@ if(first()){
 						local CalleeType = Callee["Type",number]
 						
 						if(CalleeType == _LUA_TYPE_FUNCTION){
-							Scopes:cluaSCOPEpop()
 							Scopes:cluaSCOPEpush(
 								table(
 									"_Type" = _CLUA_INST_CTX,
 									1 = Callee["NewCtx",table]
-								), 1
+								), Scopes:cluaSCOPEpop()["IndexReturn",number]
 							)
 						}elseif(CalleeType == _LUA_TYPE_TABLE){
 							error("Not implement (check __call metamethod)") #TODO: 
@@ -764,8 +767,8 @@ if(first()){
 						Scopes:cluaSCOPEpush(Right, 1)
 						Scopes:cluaSCOPEpush(Left,  2)
 					}else{            _LSCOPES
-						local Left  = _LSCOPEGetReturn(1, 1)
 						local Right = _LSCOPEGetReturn(0, 1)
+						local Left  = _LSCOPEGetReturn(1, 1)
 						local Ret = _newVarNil
 						
 						_assertVar(Right)
@@ -931,6 +934,9 @@ if(first()){
 						local Target  = _LSCOPEGetReturn(0, 1)
 						local Value   = _LSCOPEGetReturn(1, 1)
 						
+						#[ print("ass:") ]#
+						#[ printTable(LScopes:keys()) ]#
+						
 						_VarAss(Target, Value)
 					}
 					break
@@ -988,7 +994,9 @@ if(first()){
 						if(Cnd){
 							Scopes:cluaSCOPEpush(TrueBody, 0)
 						}else{
-							Scopes:cluaSCOPEpush(FalseBody, 0)
+							if(FalseBody){
+								Scopes:cluaSCOPEpush(FalseBody, 0)
+							}
 						}
 					}
 					break

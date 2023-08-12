@@ -16,3 +16,9 @@ function da(A,B,C)
 end
 
 print(da(1,2,3)) -- 4
+
+function da(A,B)
+	return A, 1, B
+end
+
+print(da(1,2,3)) -- 1, 1, 2
