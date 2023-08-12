@@ -315,16 +315,20 @@ if(first()){
 		):cluaBuildEnv()
 	}
 	
-	function table table:cluaToFunc(Code:table){
+	function table table:cluaToFunc(Code:table, Parm:table){
 		_debug(_assertClass(This, "not compile to function (This):", _CLUA_TYPE_INSTANCE))
 		_debug(_assertType(Code, "not compile to function (Code)", _CLUA_INST_BLOCK))
 		
 		return table(
 			"Code" = Code,
 			"Instance" = This,
-			"Args" = table(),
+			"Args" = Parm,            #n <number> - name <string>
 			"_class" = _CLUA_TYPE_FUNC
 		)
+	}
+	
+	function table table:cluaToFunc(Code:table){
+		return This:cluaToFunc(Code, table())
 	}
 	
 	#[ function table table:cluaSCOPEpushLastScopeInScope(Scope:table){ ]#
@@ -468,10 +472,16 @@ if(first()){
 	
 	
 	@define _VarNumOp(RESULT, LEFT, OP, RIGHT) \
-		RESULT["Value",number] = __BINARY__(_VarNum(Left), OP, _VarNum(Right))
+		_VarSetNum(RESULT, __BINARY__(_VarNum(Left), OP, _VarNum(Right)))
 	
 	@define _VarBoolOp(RESULT, LEFT, OP, RIGHT) \
-		RESULT["Value",number] = __BINARY__(_VarBool(Left), OP, _VarBool(Right))
+		_VarSetBool(RESULT, __BINARY__(_VarBool(Left), OP, _VarBool(Right)))
+	
+	@define _VarStrOp(RESULT, LEFT, OP, RIGHT) \
+		_VarSetBool(RESULT, __BINARY__(_VarStr(Left), OP, _VarStr(Right)))
+	
+	@define _VarTblOp(RESULT, LEFT, OP, RIGHT) \
+		_VarSetBool(RESULT, __BINARY__(_VarTbl(Left), OP, _VarTbl(Right)))
 	
 	
 	@define _newVarFunc \
@@ -492,6 +502,32 @@ if(first()){
 	@define _newVarNil \
 		Instance:cluaNewVar(_LUA_TYPE_NIL)
 		
+		
+	@define _IsFunc(VAR) \
+		_assertExpr(_VarType(VAR) == _LUA_TYPE_FUNCTION, _THROW_LUA_ERROR("Function expected"))
+		
+	@define _IsStr(VAR) \
+		_assertExpr(_VarType(VAR) == _LUA_TYPE_STRING, _THROW_LUA_ERROR("String expected"))
+		
+	@define _IsTbl(VAR) \
+		_assertExpr(_VarType(VAR) == _LUA_TYPE_TABLE, _THROW_LUA_ERROR("Table expected"))
+		
+	@define _IsNum(VAR) \
+		_assertExpr(_VarType(VAR) == _LUA_TYPE_NUMBER, _THROW_LUA_ERROR("Number expected"))
+		
+	@define _IsBool(VAR) \
+		_assertExpr(_VarType(VAR) == _LUA_TYPE_BOOLEAN, _THROW_LUA_ERROR("Boolean expected"))
+		
+	@define _IsNumOrBool(VAR) \
+		_assertExpr(_VarType(VAR) == _LUA_TYPE_NUMBER | _VarType(VAR) == _LUA_TYPE_BOOLEAN, _THROW_LUA_ERROR("Number or Boolean expected"))
+		
+	@define _IsNil(VAR) \
+		_assertExpr(_VarType(VAR) == _LUA_TYPE_NIL, _THROW_LUA_ERROR("Nil expected"))
+		
+		
+	@define _VarCnd(VAR) \
+		_VarType(VAR) == _LUA_TYPE_BOOLEAN ? _VarBool(VAR) : _VarType(VAR) != _LUA_TYPE_NIL
+		
 	
 	@define _VarAss(TARGET, VALUE) \
 		local TargetT = _VarType(VALUE) \
@@ -509,7 +545,7 @@ if(first()){
 	
 	
 	@define _THROW_LUA_ERROR(MSG) \
-		_notImp
+		#[ _notImp ]# error(MSG + ":" + __LINE__)
 ]#
 	function number table:cluaContextExecute(Perf){
 		_debug(_assertClass(This, "can't execute: ", _CLUA_TYPE_CONTEXT))
@@ -518,16 +554,16 @@ if(first()){
 			return 1
 		}
 		
-		local Contexts = This["Contexts",table]
-		local Instance = This["Instance",table]
+		local Contexts = This["Contexts",table]           _debug(_assertClass(Contexts, "Contexts while true:", _CLUA_TYPE_CONTEXTS))
+		local Instance = This["Instance",table]           _debug(_assertClass(Instance, "Instance while true:", _CLUA_TYPE_INSTANCE))
 		local GVars = Instance["Vars",table]
 		
 		while(perf(Perf)){
 			local ContextsCount = Contexts:ncount()
-			local Context = Contexts[ContextsCount,table]
-			local Scopes = Context["Scopes",table]
+			local Context = Contexts[ContextsCount,table] _debug(_assertClass(Context, "Context while true:", _CLUA_TYPE_CONTEXT))
+			local Scopes = Context["Scopes",table]        _debug(_assertClass(Scopes, "Scopes while true:", _CLUA_TYPE_SCOPES))
 			local ScopesCount = Scopes:ncount()
-			local LScope = Scopes[ScopesCount,table]
+			local LScope = Scopes[ScopesCount,table]      _debug(_assertClass(LScope, "LScope while true:", _CLUA_TYPE_SCOPE))
 			local SVars = LScope["Vars",table]
 			local Code = LScope["Code",table]
 			
@@ -567,6 +603,7 @@ if(first()){
 					break
 					
 				case _CLUA_INST_CALL, #TODO: обьявить все не понятные возвраты
+					local ExptArgsCount = LScope["CurrVar",number]
 					local Args = Code[2,table]
 					local ArgsCount = Args:ncount() + 1
 					local I = ArgsCount - I
@@ -583,6 +620,8 @@ if(first()){
 						local Callee = LScopes[LScopesCount,table]["Return",table][1,table]
 						local CalleeType = Callee["Type",number]
 						
+						LScope["CurrVar",number] = Callee["Value",table]["Args",table]:ncount()
+						
 						if(CalleeType == _LUA_TYPE_FUNCTION){
 							LScopes[LScopesCount,table] = Callee
 							Callee["NewCtx",table] = Callee["Value",table]:cluaCreateFuncContext()
@@ -591,7 +630,7 @@ if(first()){
 						}else{
 							error("attempt to call a " + CalleeType + " value")
 						}
-					}elseif((I + 1) >= (ArgsCount - 2) * -1){ #[ Args ]#
+					}elseif((I + 1) >= (ExptArgsCount) * -1){ #[ Args ]#
 						local LScopes = LScope["Scopes",table]
 						local Callee = LScopes[LScopes:ncount(),table]
 						
@@ -603,9 +642,9 @@ if(first()){
 						
 						if(Args:exists(Index)){
 							Vars[Args[Index,string],table] = Arg
+						}else{
+							Ctx["VarArg",table]:pushTable(Arg)
 						}
-						
-						Ctx["VarArg",table]:pushTable(Arg)
 					}elseif((I + 1) >= (ArgsCount - 1) * -1){ #[ VarArg ]#
 						local LScopes = LScope["Scopes",table]
 						local Callee = LScopes[LScopes:ncount(),table]
@@ -668,7 +707,7 @@ if(first()){
 					Contexts:cluaCTXPushReturn(Variable, 0)
 					break
 					
-				case _CLUA_INST_IDENTIFIER,
+				case _CLUA_INST_IDENTIFIER, #TODO: see all contexts
 					local I = ScopesCount - I
 					local Name = Code[1,string]
 					local Variable = table()
@@ -699,17 +738,34 @@ if(first()){
 					}
 					break
 					
-				case _CLUA_INST_BINARY, #TODO: operator and & or to lazy
-					if(I == 1){
+				case _CLUA_INST_BINARY,
+					local Operator = Code[1,number]
+					local AndOrOr = Operator == _CLUA_BINARY_AND | Operator == _CLUA_BINARY_OR
+					
+					if(I == 1 & AndOrOr){
+						local OP1 = Code[2,table]
+						
+						Scopes:cluaSCOPEpush(OP1, 1)
+					}elseif(I == 2 & AndOrOr){
+						              _LSCOPES
+						local Left  = _LSCOPEGetReturn(0, 1)
+						local OP2 = Code[3,table]
+						local Cnd = _VarCnd(Left)
+						
+						if((Cnd & Operator == _CLUA_BINARY_OR) | (!Cnd & Operator == _CLUA_BINARY_AND)){
+							Contexts:cluaCTXPushReturn(Left, 0)
+						}else{
+							Scopes:cluaSCOPEpush(OP2, 1)
+						}
+					}elseif(I == 1){
 						local Left = Code[2,table]
 						local Right = Code[3,table]
 						
-						Scopes:cluaSCOPEpush(Left,  1)
-						Scopes:cluaSCOPEpush(Right, 2)
+						Scopes:cluaSCOPEpush(Right, 1)
+						Scopes:cluaSCOPEpush(Left,  2)
 					}else{            _LSCOPES
-						local Left  = _LSCOPEGetReturn(0, 1)
-						local Right = _LSCOPEGetReturn(1, 1)
-						local Operator = Code[1,number]
+						local Left  = _LSCOPEGetReturn(1, 1)
+						local Right = _LSCOPEGetReturn(0, 1)
 						local Ret = _newVarNil
 						
 						_assertVar(Right)
@@ -718,24 +774,43 @@ if(first()){
 						if(0){ #TODO: find meta methods, первый левый, если нету, правый, иначе ошибка
 							
 						}else{ #default methods
-							_assertExpr(_VarType(Left) == _VarType(Right), _THROW_LUA_ERROR("attempt to compare {Type_ARG1} with {Type_ARG2}"))
+							#[ _assertExpr(_VarType(Left) == _VarType(Right), _THROW_LUA_ERROR("attempt to compare {Type_ARG1} with {Type_ARG2}")) ]#
+							
+						#[
+							@define _BINARY_EQ_GEN(LEFT, OP, RIGHT)                                 \
+								local TypeL = _VarType(LEFT)                                        \
+								local TypeR = _VarType(RIGHT)                                       \
+								Ret = _newVarBool                                                   \
+								if(TypeL != TypeR){ _VarSetBool(Ret, 0) break }                     \
+								switch(TypeL){                                                      \
+									case _LUA_TYPE_NUMBER  , _VarNumOp(Ret, LEFT, OP, RIGHT)  break \
+									case _LUA_TYPE_BOOLEAN , _VarBoolOp(Ret, LEFT, OP, RIGHT) break \
+									case _LUA_TYPE_STRING  , _VarStrOp(Ret, LEFT, OP, RIGHT)  break \
+									case _LUA_TYPE_USERDATA,                                        \
+									case _LUA_TYPE_FUNCTION,                                        \
+									case _LUA_TYPE_THREAD  ,                                        \
+									case _LUA_TYPE_TABLE   , _VarTblOp(Ret, LEFT, OP, RIGHT) break  \
+									case _LUA_TYPE_NIL     , _VarSetBool(Ret, 0)             break  \
+								}
+						]#
 							
 							switch(Operator){
-								case _CLUA_BINARY_ADD,  Ret = _newVarNum _VarNumOp(Ret, Left, "+", Right) break
-								case _CLUA_BINARY_SUB,  Ret = _newVarNum _VarNumOp(Ret, Left, "-", Right) break
-								case _CLUA_BINARY_MUL,  Ret = _newVarNum _VarNumOp(Ret, Left, "*", Right) break
-								case _CLUA_BINARY_DIV,  Ret = _newVarNum _VarNumOp(Ret, Left, "/", Right) break
-								case _CLUA_BINARY_MOD,  Ret = _newVarNum _VarNumOp(Ret, Left, "%", Right) break
-								case _CLUA_BINARY_CNC,  _notImp() break
+								case _CLUA_BINARY_ADD, _IsNum(Left) _IsNum(Right) Ret = _newVarNum _VarNumOp(Ret, Left, "+", Right) break
+								case _CLUA_BINARY_SUB, _IsNum(Left) _IsNum(Right) Ret = _newVarNum _VarNumOp(Ret, Left, "-", Right) break
+								case _CLUA_BINARY_MUL, _IsNum(Left) _IsNum(Right) Ret = _newVarNum _VarNumOp(Ret, Left, "*", Right) break
+								case _CLUA_BINARY_DIV, _IsNum(Left) _IsNum(Right) Ret = _newVarNum _VarNumOp(Ret, Left, "/", Right) break
+								case _CLUA_BINARY_MOD, _IsNum(Left) _IsNum(Right) Ret = _newVarNum _VarNumOp(Ret, Left, "%", Right) break
+								case _CLUA_BINARY_CNC, _IsStr(Left) _IsStr(Right) Ret = _newVarStr _VarSetStr(Ret, _VarStr(Left) + _VarStr(Right)) break
+									#TODO: check meta method __tostring
 								
-								case _CLUA_BINARY_LS,   Ret = _newVarBool _VarNumOp(Ret, Left, "<" , Right) break
-								case _CLUA_BINARY_GR,   Ret = _newVarBool _VarNumOp(Ret, Left, ">" , Right) break
-								case _CLUA_BINARY_EQLS, Ret = _newVarBool _VarNumOp(Ret, Left, "<=", Right) break
-								case _CLUA_BINARY_EQGR, Ret = _newVarBool _VarNumOp(Ret, Left, ">=", Right) break
-								case _CLUA_BINARY_EQ,   Ret = _newVarBool _VarNumOp(Ret, Left, "==", Right) break
-								case _CLUA_BINARY_NEQ,  Ret = _newVarBool _VarNumOp(Ret, Left, "!=", Right) break
-								case _CLUA_BINARY_AND,  Ret = _newVarBool _VarNumOp(Ret, Left, "&" , Right) break
-								case _CLUA_BINARY_OR,   Ret = _newVarBool _VarNumOp(Ret, Left, "|" , Right) break
+								case _CLUA_BINARY_LS,   _IsNum(Left) _IsNum(Right) Ret = _newVarBool _VarNumOp(Ret, Left, "<" , Right) break
+								case _CLUA_BINARY_GR,   _IsNum(Left) _IsNum(Right) Ret = _newVarBool _VarNumOp(Ret, Left, ">" , Right) break
+								case _CLUA_BINARY_EQLS, _IsNum(Left) _IsNum(Right) Ret = _newVarBool _VarNumOp(Ret, Left, "<=", Right) break
+								case _CLUA_BINARY_EQGR, _IsNum(Left) _IsNum(Right) Ret = _newVarBool _VarNumOp(Ret, Left, ">=", Right) break
+								case _CLUA_BINARY_EQ,   _BINARY_EQ_GEN(Left, "==", Right) break
+								case _CLUA_BINARY_NEQ,  _BINARY_EQ_GEN(Left, "!=", Right) break
+								case _CLUA_BINARY_AND,  Ret = Right break
+								case _CLUA_BINARY_OR,   Ret = Right break
 								
 								default, _notImp() break
 							}
@@ -762,12 +837,12 @@ if(first()){
 						}else{ #default methods
 							switch(Operator){
 								case _CLUA_UNARY_NEG,  Ret = _newVarNum _VarSetNum(Ret, -_VarNum(Expr)) break
-								case _CLUA_UNARY_NOT,
-									switch(_VarType(Expr)){
-										case _LUA_TYPE_NIL,     Ret = _newVarBool _VarSetBool(Ret, 1)               break
-										case _LUA_TYPE_BOOLEAN, Ret = _newVarBool _VarSetBool(Ret, !_VarBool(Expr)) break
-										default,                Ret = _newVarBool _VarSetBool(Ret, 0)               break
-									}
+								case _CLUA_UNARY_NOT,  _VarSetBool(Ret, !_VarCnd(Expr))
+									#[ switch(_VarType(Expr)){ ]#
+										#[ case _LUA_TYPE_NIL,     Ret = _newVarBool _VarSetBool(Ret, 1)               break ]#
+										#[ case _LUA_TYPE_BOOLEAN, Ret = _newVarBool _VarSetBool(Ret, !_VarBool(Expr)) break ]#
+										#[ default,                Ret = _newVarBool _VarSetBool(Ret, 0)               break ]#
+									#[ } ]#
 									break
 								case _CLUA_UNARY_SHP,
 									switch(_VarType(Expr)){
@@ -878,16 +953,75 @@ if(first()){
 					}
 					break
 					
-				case _CLUA_INST_FUNCTION, #TODO: param parse
-					#[ local CurrVar = LScope["CurrVar",table] ]#
-					local Parm  = Code[1,table]
+				case _CLUA_INST_FUNCTION,
+					local ParmIndf  = Code[1,table]
 					local Block = Code[2,table]
+					local ArgCount = ParmIndf:ncount()
+					local Parm = table()
 					
 					local Ret = _newVarFunc
 					
-					_VarSetTbl(Ret, Instance:cluaToFunc(Block))
+					for(I=1, ArgCount){
+						if(ParmIndf["_Type",number] != _CLUA_INST_VARARG){
+							Parm:pushString(ParmIndf[I,table][1,string])
+						}
+					}
+					
+					_VarSetTbl(Ret, Instance:cluaToFunc(Block, Parm))
 					
 					Contexts:cluaCTXPushReturn(Ret, 0)
+					break
+					
+				case _CLUA_INST_IF,
+					local Condition = Code[1,table]
+					local TrueBody  = Code[2,table]
+					local FalseBody = Code[3,table]
+					
+					if(I == 1){
+						Scopes:cluaSCOPEpush(Condition, 1)
+					}else{            _LSCOPES
+						local Value = _LSCOPEGetReturn(0, 1)
+						local Cnd   = _VarCnd(Value)
+						
+						Scopes:cluaSCOPEpop()
+						
+						if(Cnd){
+							Scopes:cluaSCOPEpush(TrueBody, 0)
+						}else{
+							Scopes:cluaSCOPEpush(FalseBody, 0)
+						}
+					}
+					break
+					
+				case _CLUA_INST_BREAK,
+					while(1){
+						local PopType = Scopes:cluaSCOPEpop()["Code",table]["_Type",number]
+						
+						if(	  PopType == _CLUA_INST_WHILE
+							| PopType == _CLUA_INST_FOR
+							| PopType == _CLUA_INST_REPEAT){
+							break
+						}
+					}
+					break
+					
+				case _CLUA_INST_WHILE,
+					local Condition  = Code[1,table]
+					local Body = Code[2,table]
+					
+					if(I == 1){
+						Scopes:cluaSCOPEpush(Condition, 1)
+					}else{            _LSCOPES
+						local Value = _LSCOPEGetReturn(0, 1)
+						local Cnd   = _VarCnd(Value)
+						
+						if(Cnd){
+							Scopes:cluaSCOPEpush(Body, 0)
+							I = 0
+						}else{
+							Scopes:cluaSCOPEpop()
+						}
+					}
 					break
 					
 				default,

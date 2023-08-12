@@ -317,7 +317,9 @@ function _compileE2_Statements(ast, depth)
 	
 	buff(Ret, '"_Type" = ')
 	buff(Ret, _CLUA_INST[Type:upper()])
-	buff(Ret, ',')
+	if not (Type == 'block' and #ast.statements == 0) and Type ~= 'break' then
+		buff(Ret, ',')
+	end
 	buffCom(Ret, Type:upper())
 	buffNl(Ret, depth)
 		if Type == 'block' then
@@ -382,6 +384,30 @@ function _compileE2_Statements(ast, depth)
 			end
 			buffNl(Ret, depth - 1)
 			buff(Ret, ')')
+		elseif Type == 'break' then
+		elseif Type == 'if' then
+			buff(Ret, '1 = ')
+			buff(Ret, _compileE2_Expressions(ast.condition, depth))
+			buff(Ret, ',')
+			buffNl(Ret, depth)
+			
+			buff(Ret, '2 = ')
+			buff(Ret, _compileE2_Statements(ast.bodyTrue, depth))
+			
+			if ast.bodyFalse then
+				buff(Ret, ',')
+				buffNl(Ret, depth)
+				buff(Ret, '3 = ')
+				buff(Ret, _compileE2_Statements(ast.bodyFalse, depth))
+			end
+		elseif Type == 'while' then
+			buff(Ret, '1 = ')
+			buff(Ret, _compileE2_Expressions(ast.condition, depth))
+			buff(Ret, ',')
+			buffNl(Ret, depth)
+			
+			buff(Ret, '2 = ')
+			buff(Ret, _compileE2_Statements(ast.body, depth))
 		else
 			error('stmt not compile: ' .. Type)
 		end

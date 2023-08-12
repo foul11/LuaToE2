@@ -7,124 +7,56 @@ if(first()){
     local Code = table(
             "_Type" = 10, #[ BLOCK ]#
             1 = table(
-                  "_Type" = 4, #[ ASSIGNMENT ]#
+                  "_Type" = 2, #[ CALL ]#
                   1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
                         1 = table(
-                              1 = table(
-                                    "_Type" = 15, #[ IDENTIFIER ]#
-                                    1 = "aaa"
-                              ),
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 1,
                               2 = table(
                                     "_Type" = 17, #[ LITERAL ]#
                                     1 = 5,
-                                    2 = 0
+                                    2 = 1
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 2
                               )
                         )
                   )
             ),
             2 = table(
-                  "_Type" = 4, #[ ASSIGNMENT ]#
+                  "_Type" = 2, #[ CALL ]#
                   1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
                         1 = table(
-                              1 = table(
-                                    "_Type" = 15, #[ IDENTIFIER ]#
-                                    1 = "da"
-                              ),
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 1,
                               2 = table(
-                                    "_Type" = 22, #[ FUNCTION ]#
-                                    1 = table(
-                                          
-                                    ),
+                                    "_Type" = 21, #[ BINARY ]#
+                                    1 = 1,
                                     2 = table(
-                                          "_Type" = 10, #[ BLOCK ]#
-                                          1 = table(
-                                                "_Type" = 4, #[ ASSIGNMENT ]#
-                                                1 = table(
-                                                      1 = table(
-                                                            1 = table(
-                                                                  "_Type" = 15, #[ IDENTIFIER ]#
-                                                                  1 = "aaa"
-                                                            ),
-                                                            2 = table(
-                                                                  "_Type" = 21, #[ BINARY ]#
-                                                                  1 = 1,
-                                                                  2 = table(
-                                                                        "_Type" = 15, #[ IDENTIFIER ]#
-                                                                        1 = "aaa"
-                                                                  ),
-                                                                  3 = table(
-                                                                        "_Type" = 17, #[ LITERAL ]#
-                                                                        1 = 5,
-                                                                        2 = 1
-                                                                  )
-                                                            )
-                                                      )
-                                                )
-                                          ),
-                                          2 = table(
-                                                "_Type" = 2, #[ CALL ]#
-                                                1 = table(
-                                                      "_Type" = 15, #[ IDENTIFIER ]#
-                                                      1 = "print"
-                                                ),
-                                                2 = table(
-                                                      1 = table(
-                                                            "_Type" = 15, #[ IDENTIFIER ]#
-                                                            1 = "aaa"
-                                                      )
-                                                )
-                                          ),
-                                          3 = table(
-                                                "_Type" = 7, #[ RETURN ]#
-                                                1 = table(
-                                                      1 = table(
-                                                            "_Type" = 21, #[ BINARY ]#
-                                                            1 = 21,
-                                                            2 = table(
-                                                                  "_Type" = 21, #[ BINARY ]#
-                                                                  1 = 20,
-                                                                  2 = table(
-                                                                        "_Type" = 21, #[ BINARY ]#
-                                                                        1 = 19,
-                                                                        2 = table(
-                                                                              "_Type" = 15, #[ IDENTIFIER ]#
-                                                                              1 = "aaa"
-                                                                        ),
-                                                                        3 = table(
-                                                                              "_Type" = 17, #[ LITERAL ]#
-                                                                              1 = 5,
-                                                                              2 = 3
-                                                                        )
-                                                                  ),
-                                                                  3 = table(
-                                                                        "_Type" = 21, #[ BINARY ]#
-                                                                        1 = 1,
-                                                                        2 = table(
-                                                                              "_Type" = 17, #[ LITERAL ]#
-                                                                              1 = 5,
-                                                                              2 = 1
-                                                                        ),
-                                                                        3 = table(
-                                                                              "_Type" = 2, #[ CALL ]#
-                                                                              1 = table(
-                                                                                    "_Type" = 15, #[ IDENTIFIER ]#
-                                                                                    1 = "da"
-                                                                              ),
-                                                                              2 = table(
-                                                                                    
-                                                                              )
-                                                                        )
-                                                                  )
-                                                            ),
-                                                            3 = table(
-                                                                  "_Type" = 17, #[ LITERAL ]#
-                                                                  1 = 5,
-                                                                  2 = 0
-                                                            )
-                                                      )
-                                                )
-                                          )
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 1
+                                    ),
+                                    3 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
                                     )
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 3
                               )
                         )
                   )
@@ -137,13 +69,264 @@ if(first()){
                   ),
                   2 = table(
                         1 = table(
-                              "_Type" = 2, #[ CALL ]#
-                              1 = table(
-                                    "_Type" = 15, #[ IDENTIFIER ]#
-                                    1 = "da"
-                              ),
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 1,
                               2 = table(
-                                    
+                                    "_Type" = 21, #[ BINARY ]#
+                                    1 = 3,
+                                    2 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    ),
+                                    3 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    )
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 2
+                              )
+                        )
+                  )
+            ),
+            4 = table(
+                  "_Type" = 2, #[ CALL ]#
+                  1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
+                        1 = table(
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 1,
+                              2 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 2
+                              ),
+                              3 = table(
+                                    "_Type" = 21, #[ BINARY ]#
+                                    1 = 3,
+                                    2 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    ),
+                                    3 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    )
+                              )
+                        )
+                  )
+            ),
+            5 = table(
+                  "_Type" = 2, #[ CALL ]#
+                  1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
+                        1 = table(
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 3,
+                              2 = table(
+                                    "_Type" = 21, #[ BINARY ]#
+                                    1 = 1,
+                                    2 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    ),
+                                    3 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    )
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 2
+                              )
+                        )
+                  )
+            ),
+            6 = table(
+                  "_Type" = 2, #[ CALL ]#
+                  1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
+                        1 = table(
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 4,
+                              2 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 1
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 2
+                              )
+                        )
+                  )
+            ),
+            7 = table(
+                  "_Type" = 2, #[ CALL ]#
+                  1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
+                        1 = table(
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 3,
+                              2 = table(
+                                    "_Type" = 21, #[ BINARY ]#
+                                    1 = 7,
+                                    2 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 1
+                                    ),
+                                    3 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    )
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 3
+                              )
+                        )
+                  )
+            ),
+            8 = table(
+                  "_Type" = 2, #[ CALL ]#
+                  1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
+                        1 = table(
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 1,
+                              2 = table(
+                                    "_Type" = 21, #[ BINARY ]#
+                                    1 = 2,
+                                    2 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    ),
+                                    3 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    )
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 2
+                              )
+                        )
+                  )
+            ),
+            9 = table(
+                  "_Type" = 2, #[ CALL ]#
+                  1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
+                        1 = table(
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 16,
+                              2 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 2
+                              ),
+                              3 = table(
+                                    "_Type" = 21, #[ BINARY ]#
+                                    1 = 3,
+                                    2 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    ),
+                                    3 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    )
+                              )
+                        )
+                  )
+            ),
+            10 = table(
+                  "_Type" = 2, #[ CALL ]#
+                  1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
+                        1 = table(
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 13,
+                              2 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 4,
+                                    2 = "123"
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 4,
+                                    2 = "345"
+                              )
+                        )
+                  )
+            ),
+            11 = table(
+                  "_Type" = 2, #[ CALL ]#
+                  1 = table(
+                        "_Type" = 15, #[ IDENTIFIER ]#
+                        1 = "print"
+                  ),
+                  2 = table(
+                        1 = table(
+                              "_Type" = 21, #[ BINARY ]#
+                              1 = 1,
+                              2 = table(
+                                    "_Type" = 21, #[ BINARY ]#
+                                    1 = 14,
+                                    2 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    ),
+                                    3 = table(
+                                          "_Type" = 17, #[ LITERAL ]#
+                                          1 = 5,
+                                          2 = 2
+                                    )
+                              ),
+                              3 = table(
+                                    "_Type" = 17, #[ LITERAL ]#
+                                    1 = 5,
+                                    2 = 2
                               )
                         )
                   )

@@ -69,12 +69,12 @@ if(first()){
         local RIdx = 0
         
         if((Tbl["Type",number] ?: 8) != 7){
-            error("Not implement (check " + "clua_table_insert" + ":" + 91 + ")")
+            error("bad argument #1 to 'insert' (table expected, got " + (Tbl["Type",number] ?: 8) + ")" + ":" + 91)
         }
         
         if((Val["Type",number] ?: 8) != 8){
             if((Idx["Type",number] ?: 8) != 5){
-                error("Not implement (check " + "clua_table_insert" + ":" + 94 + ")")
+                error("bad argument #2 to 'insert' (number expected, got " + (Idx["Type",number] ?: 8) + ")" + ":" + 94)
             }
             RIdx = Idx["Value",number]
             Tbl:insertTable(RIdx, Val)
@@ -94,7 +94,7 @@ if(first()){
         local Val = Args[1,table]
         
         if((Val["Type",number] ?: 8) != 5){
-            error("Not implement (check " + "clua_inc" + ":" + 113 + ")")
+            error("bad argument #1 to 'inc' (number expected, got " + (Val["Type",number] ?: 8) + ")" + ":" + 113)
         }
         Val["Value",number] = Val["Value",number] + 1
         print("clua_inc: " + Val["Value",number])
