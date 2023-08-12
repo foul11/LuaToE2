@@ -1059,11 +1059,11 @@ export class Scope {
         this.defines = Object.create(null);
         this.recurseCount = Object.create(null);
         this.fdefine = Object.assign(Object.create(null), { // regarding sources
-            '__FUNC__': function*(node, scope,){ yield new Literal({ value: scope.funcname[scope.funcname.length - 1] ?? '[MAIN]', return: scope.string, isstring: true }); },
+            '__FUNC__': function*(node, scope){ yield new Literal({ value: scope.funcname[scope.funcname.length - 1] ?? '[MAIN]', return: scope.string, isstring: true }); },
             '__LINE__': function*(node, scope){ yield new Literal({ value: scope.defineLine ?? node.line, return: scope.number, isstring: false }); },
             '__FILE__': function*(node, scope){ yield new Literal({ value: scope.filename[scope.filename.length - 1], return: scope.string, isstring: true }); },
             '__TIME__': function*(node, scope){ yield new Literal({ value: (new Date()).toISOString(), return: scope.string, isstring: true }); },
-            '__ENUM__': function*(node, scope, args) {
+            '__ENUM__': function*(node, scope, depth, args) {
                 if (args.length != 2) { console.warn(`__ENUM__ takes 2 arguments but passed${args.length}`); }
                 if (!(args[0] instanceof Literal)) { console.warn(`__ENUM__ arg 1 passed '${args[0].constructor.name}' but expected 'literal'`); }
                 if (!(args[1] instanceof Literal)) { console.warn(`__ENUM__ arg 2 passed '${args[0].constructor.name}' but expected 'literal'`); }
@@ -1072,7 +1072,7 @@ export class Scope {
                 
                 yield new Literal({ value: enumv, return: scope.string, isstring: true });
             },
-            '__BINARY__': function*(node, scope, args) {
+            '__BINARY__': function*(node, scope, depth, args) {
                 if (args.length != 3) { console.warn(`__ENUM__ takes 2 arguments but passed${args.length}`); }
                 if (!(args[1] instanceof Literal)) { console.warn(`__ENUM__ arg 1 passed '${args[0].constructor.name}' but expected 'literal'`); }
                 
@@ -1084,6 +1084,13 @@ export class Scope {
                    right: args[2],
                    ...scope.getOP(Scope.BINARY_TO_OPNAME[op], [args[0], args[2]]),
                 });
+            },
+            '__MACRO__': function*(node, scope, depth, args) {
+                if (!(args[0] instanceof Literal)) { console.warn(`__MACRO__ arg 1 passed '${args[0].constructor.name}' but expected 'literal'`); }
+                
+                let ret;
+                let gen = scope.includeDefine(args[0], depth, args);
+                while(!(ret = gen.next()).done) yield ret.value;
             },
         });
         
@@ -1835,6 +1842,113 @@ export class Scope {
         // }
         
         yield node;
+    }
+    
+    *includeDefine(node, depth, args = [], annotations = []) {
+        let define = null;
+        let dargs = null;
+        
+        if (node instanceof LexemConstant) {
+            [define, dargs] = this.defines[node.value] ?? [];
+        } else if (node instanceof LexemText) {
+            [define, dargs] = this.defines[node.text] ?? [];
+        } else if (node instanceof Call) {
+            [define, dargs] = this.defines[node.callee] ?? [];
+        } else return false;
+        
+        if (define) {
+            let annos = annotations.concat(node.annotations);
+            let ldef = null;
+            let setCurrLine = !this.defineLine;
+            
+            this.recurseCount[define] = this.recurseCount[define] ?? 0;
+            
+            if(this.recurseCount[define]++ >= 10)
+                throw new Error(`Spent the entire stack on calls to define "${define}"`);
+            
+            if (dargs) {
+                ldef = {};
+                
+                for (let key of dargs) {
+                    ldef[key] = this.defines[key];
+                }
+                
+                for (let i = 0; i < args.length; i++) {
+                    this.defines[dargs[i]] = [partCompile(args[i], this.e2data, { pretty: false }), []];
+                }
+            }
+            let ref = {};
+            
+            const fastFindLiteral = (text) => {
+                if (/^\d+$/.test(text)) {
+                    return new Literal({
+                        value: text,
+                        isstring: false,
+                        return: this.number,
+                    });
+                } else if (/^"[^"]+"$/.test(text)) {
+                    return new Literal({
+                        value: text.slice(1).slice(0, -1),
+                        isstring: true,
+                        return: this.string,
+                    });
+                }
+            }
+            
+            let fastLiteral = fastFindLiteral(define);
+            let stmts;
+            
+            if (!fastLiteral) {
+                yield this.IncludePreCache(define, true, ref);
+                
+                let last_indefine = this.isinsidedefine;
+                let last_stmt_flas = this.flag_laststmt;
+                
+                if (setCurrLine)
+                    this.defineLine = node.line ?? -1;
+                
+                this.nextNotPushScope = true;
+                this.isinsidedefine = 0;
+                // let stmts = this.BlockFromRaw(define).block.statements;
+                yield this.IncludeToBlock(ref.return);
+                stmts = this.includePop().block.statements;
+                
+                this.nextNotPushScope = false;
+                this.flag_laststmt = last_stmt_flas;
+                this.isinsidedefine = last_indefine;
+            
+                if (setCurrLine)
+                    this.defineLine = null;
+            } else {
+                stmts = [fastLiteral];
+            }
+            
+            this.recurseCount[define]--;
+            
+            if (this.flag_laststmt == depth - 1 || this.isinsidedefine) {
+                for (let stmt of stmts) {
+                    stmt.annotations = stmt.annotations.concat(annos);
+                    yield stmt;
+                }
+            } else {
+                if (stmts.length != 1) {
+                    throw new Error(`Only one expression is allowed inside an expression: ${define}`);
+                } else if (!(stmts[0] instanceof Expression)) {
+                    throw new Error(`Statements are not allowed inside expressions: ${define}`);
+                } else {
+                    stmts[0].annotations = stmts[0].annotations.concat(annos);
+                    yield stmts[0];
+                }
+            }
+            
+            if (ldef) {
+                for (let [key, val] of Object.entries(ldef)) {
+                    this.defines[key] = val;
+                }
+            }
+        } else return false;
+        
+        return true;
     }
 }
 
@@ -3396,7 +3510,7 @@ function *travel(node, scope, depth = 0) {
                     switch(true) {
                         case node instanceof LexemText:
                             let ret;
-                            let gen = includeDefine(node, [], expr_anno);
+                            let gen = scope.includeDefine(node, depth, [], expr_anno);
                             while(!(ret = gen.next()).done) yield ret.value;
                             
                             if (!ret.value) {
@@ -3552,113 +3666,6 @@ function *travel(node, scope, depth = 0) {
                     return retVar;
                 }
                 
-                function* includeDefine(node, args = [], annotations = []) {
-                    let define = null;
-                    let dargs = null;
-                    
-                    if (node instanceof LexemConstant) {
-                        [define, dargs] = scope.defines[node.value] ?? [];
-                    } else if (node instanceof LexemText) {
-                        [define, dargs] = scope.defines[node.text] ?? [];
-                    } else if (node instanceof Call) {
-                        [define, dargs] = scope.defines[node.callee] ?? [];
-                    } else return false;
-                    
-                    if (define) {
-                        let annos = annotations.concat(node.annotations);
-                        let ldef = null;
-                        let setCurrLine = !scope.defineLine;
-                        
-                        scope.recurseCount[define] = scope.recurseCount[define] ?? 0;
-                        
-                        if(scope.recurseCount[define]++ >= 10)
-                            throw new Error(`Spent the entire stack on calls to define "${define}"`);
-                        
-                        if (dargs) {
-                            ldef = {};
-                            
-                            for (let key of dargs) {
-                                ldef[key] = scope.defines[key];
-                            }
-                            
-                            for (let i = 0; i < args.length; i++) {
-                                scope.defines[dargs[i]] = [partCompile(args[i], scope.e2data, { pretty: false }), []];
-                            }
-                        }
-                        let ref = {};
-                        
-                        function fastFindLiteral(text) {
-                            if (/^\d+$/.test(text)) {
-                                return new Literal({
-                                    value: text,
-                                    isstring: false,
-                                    return: scope.number,
-                                });
-                            } else if (/^"[^"]+"$/.test(text)) {
-                                return new Literal({
-                                    value: text.slice(1).slice(0, -1),
-                                    isstring: true,
-                                    return: scope.string,
-                                });
-                            }
-                        }
-                        
-                        let fastLiteral = fastFindLiteral(define);
-                        let stmts;
-                        
-                        if (!fastLiteral) {
-                            yield scope.IncludePreCache(define, true, ref);
-                            
-                            let last_indefine = scope.isinsidedefine;
-                            let last_stmt_flas = scope.flag_laststmt;
-                            
-                            if (setCurrLine)
-                                scope.defineLine = node.line ?? -1;
-                            
-                            scope.nextNotPushScope = true;
-                            scope.isinsidedefine = 0;
-                            // let stmts = scope.BlockFromRaw(define).block.statements;
-                            yield scope.IncludeToBlock(ref.return);
-                            stmts = scope.includePop().block.statements;
-                            
-                            scope.nextNotPushScope = false;
-                            scope.flag_laststmt = last_stmt_flas;
-                            scope.isinsidedefine = last_indefine;
-                        
-                            if (setCurrLine)
-                                scope.defineLine = null;
-                        } else {
-                            stmts = [fastLiteral];
-                        }
-                        
-                        scope.recurseCount[define]--;
-                        
-                        if (scope.flag_laststmt == depth - 1 || scope.isinsidedefine) {
-                            for (let stmt of stmts) {
-                                stmt.annotations = stmt.annotations.concat(annos);
-                                yield stmt;
-                            }
-                        } else {
-                            if (stmts.length != 1) {
-                                throw new Error(`Only one expression is allowed inside an expression: ${define}`);
-                            } else if (!(stmts[0] instanceof Expression)) {
-                                throw new Error(`Statements are not allowed inside expressions: ${define}`);
-                            } else {
-                                stmts[0].annotations = stmts[0].annotations.concat(annos);
-                                yield stmts[0];
-                            }
-                        }
-                        
-                        if (ldef) {
-                            for (let [key, val] of Object.entries(ldef)) {
-                                scope.defines[key] = val;
-                            }
-                        }
-                    } else return false;
-                    
-                    return true;
-                }
-                
                 switch(true) {
                     case is_len(1) && is_inst([Var]):
                         exps[0].annotations = exps[0].annotations.concat(expr_anno);
@@ -3670,10 +3677,10 @@ function *travel(node, scope, depth = 0) {
                     // case is_len(1) && is_inst([StringCall]):
                     // case is_len(1) && is_inst([Assignment]):
                     if (scope.fdefine[exps[0].callee]) {
-                        yield* scope.fdefine[exps[0].callee](exps[0], scope, exps[0].arguments);
+                        yield* scope.fdefine[exps[0].callee](exps[0], scope, depth, exps[0].arguments);
                     } else {
                         let ret;
-                        let gen = includeDefine(exps[0], exps[0].arguments, expr_anno);
+                        let gen = scope.includeDefine(exps[0], depth, exps[0].arguments, expr_anno);
                         while(!(ret = gen.next()).done) yield ret.value;
                         
                         if (!ret.value) {
@@ -3704,10 +3711,10 @@ function *travel(node, scope, depth = 0) {
                         let literal_node = exps[0];
                         
                         if (scope.fdefine[literal_node.value]) {
-                            yield* scope.fdefine[literal_node.value](literal_node, scope);
+                            yield* scope.fdefine[literal_node.value](literal_node, scope, depth);
                         } else {
                             let ret;
-                            let gen = includeDefine(literal_node, [], expr_anno);
+                            let gen = scope.includeDefine(literal_node, depth, [], expr_anno);
                             while(!(ret = gen.next()).done) yield ret.value;
                             
                             if (!ret.value) {
